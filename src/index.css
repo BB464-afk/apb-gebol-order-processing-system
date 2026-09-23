@@ -1,0 +1,721 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Open Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'Open Sans', system-ui, sans-serif;
+  --color-accent: #F8B800;
+  --color-dark: #262626;
+  --color-primary-btn: #f7b611;
+  --color-header: #4f4f4e;
+  --color-normal: #8f9494;
+}
+
+@layer base {
+  *, ::before, ::after {
+    font-family: 'Open Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+  }
+  
+  html {
+    font-size: 15px;
+    font-family: 'Open Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+  }
+  
+  body, #root {
+    font-family: 'Open Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+    font-size: 15px;
+    color: #8f9494;
+    line-height: 1.5;
+  }
+
+  /* Headings: Header font color #4f4f4e (NOT 15px, retain heading sizes) */
+  h1, h2, h3, h4, h5, h6 {
+    color: #4f4f4e;
+    font-family: 'Open Sans', system-ui, sans-serif !important;
+  }
+
+  /* Normal content: font size 15px, font color #8f9494 */
+  p,
+  .normal-content,
+  .content-text {
+    font-size: 15px;
+    color: #8f9494;
+    font-family: 'Open Sans', system-ui, sans-serif !important;
+  }
+
+  input, button, select, textarea, optgroup, option {
+    font-family: 'Open Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+  }
+  
+  code, kbd, samp, pre, .font-mono, [class*="font-mono"] {
+    font-family: 'Open Sans', system-ui, sans-serif !important;
+  }
+
+  /* Field header: Open sans light (weight 300) with normal font color #8f9494 and compact 13px */
+  label,
+  .field-header,
+  .field-label {
+    font-family: 'Open Sans', system-ui, sans-serif !important;
+    font-weight: 300;
+    letter-spacing: 0.01em;
+    color: #8f9494;
+    font-size: 13px !important;
+  }
+
+  .rounded-full,
+  [class*="rounded-full"] {
+    border-radius: 9999px !important;
+  }
+
+  /* Dropdown styling with Open Sans format matching Gebol design system */
+  select {
+    font-family: 'Open Sans', system-ui, sans-serif !important;
+    background-color: #ffffff !important;
+    color: #262626 !important;
+    border: 1px solid #E0E0E0;
+    border-radius: 0.5rem;
+    transition: all 0.15s ease-in-out;
+  }
+  select:hover {
+    border-color: #9CA3AF;
+  }
+  select:focus {
+    background-color: #ffffff !important;
+    border: 2px solid #F8B800 !important;
+    outline: none !important;
+    box-shadow: 0 0 0 1px #F8B800;
+  }
+  select option {
+    font-family: 'Open Sans', system-ui, sans-serif !important;
+    background-color: #ffffff !important;
+    color: #262626 !important;
+    padding: 8px 12px;
+  }
+  select option:checked {
+    background-color: #FFF9E6 !important;
+    color: #262626 !important;
+    font-weight: 600;
+  }
+
+  /* Date inputs: Hide duplicate native calendar indicator so only custom action icon displays */
+  input[type="date"] {
+    font-family: 'Open Sans', system-ui, sans-serif !important;
+  }
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    display: none !important;
+    -webkit-appearance: none !important;
+    opacity: 0 !important;
+    width: 0 !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    pointer-events: none !important;
+  }
+}
+
+/* 🎨 Clean Heading / Page Header Style (The dark color decided in theme: #262626 / #4f4f4e) */
+.page-header-title,
+.heading-partner-style,
+.page-heading,
+.upload-order-header {
+  font-family: 'Open Sans', system-ui, sans-serif !important;
+  font-weight: 700 !important;
+  color: #262626 !important;
+  letter-spacing: -0.015em;
+  text-shadow: none !important;
+}
+
+/* Theme B: Page Headers are the theme dark color */
+[data-theme="B"] .page-header-title,
+[data-theme="B"] .page-heading,
+[data-theme="B"] .upload-order-header {
+  color: #262626 !important;
+}
+
+/* Theme B: Notification icon on top header is white */
+[data-theme="B"] header .header-notification-btn,
+[data-theme="B"] header .header-notification-icon,
+[data-theme="B"] header button[title="Notifications"] svg {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+/* 📊 Table System: Theme A and Theme B both have compact font size (11.5px) for table content */
+table:not(.pdf-doc-table) {
+  font-size: 11.5px !important;
+}
+
+table:not(.pdf-doc-table) tbody tr td,
+table:not(.pdf-doc-table) td {
+  font-size: 11.5px !important;
+  line-height: 1.35 !important;
+}
+
+/* 📊 Table Headers: Bold (weight 700) and distinct for application data tables */
+table:not(.pdf-doc-table) th,
+table:not(.pdf-doc-table) thead th,
+table:not(.pdf-doc-table) thead tr th {
+  padding-top: 0.4rem !important;
+  padding-bottom: 0.4rem !important;
+  font-size: 11.5px !important;
+  letter-spacing: 0.01em !important;
+  text-transform: capitalize !important;
+  font-weight: 700 !important;
+  font-family: 'Open Sans', system-ui, sans-serif !important;
+}
+
+/* Theme A: Table headers are bold with high-contrast text */
+[data-theme="A"] table:not(.pdf-doc-table) thead,
+[data-theme="A"] table:not(.pdf-doc-table) thead tr,
+[data-theme="A"] table:not(.pdf-doc-table) thead th {
+  background-color: #F8F9FA !important;
+  color: #1A1A1A !important;
+  font-weight: 700 !important;
+  border-color: #E5E7EB !important;
+}
+
+/* Theme B: Table headers match sidebar background #161922 with bold white text */
+[data-theme="B"] table:not(.pdf-doc-table) thead,
+[data-theme="B"] table:not(.pdf-doc-table) thead tr,
+[data-theme="B"] table:not(.pdf-doc-table) thead th {
+  background-color: #161922 !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  border-color: #262A36 !important;
+}
+
+/* 📐 Theme B: Tables have all borders */
+[data-theme="B"] table:not(.pdf-doc-table) {
+  border-collapse: collapse !important;
+  border: 1px solid #D1D5DB !important;
+}
+
+[data-theme="B"] table:not(.pdf-doc-table) thead th,
+[data-theme="B"] table:not(.pdf-doc-table) thead tr th {
+  border: 1px solid #374151 !important;
+}
+
+[data-theme="B"] table:not(.pdf-doc-table) tbody tr td,
+[data-theme="B"] table:not(.pdf-doc-table) td {
+  border: 1px solid #E5E7EB !important;
+}
+
+/* 📄 Authentic PDF Document Simulation: strictly contained within paper bounds */
+.pdf-doc-table {
+  table-layout: fixed !important;
+  width: 100% !important;
+  border-collapse: collapse !important;
+  background-color: transparent !important;
+}
+
+.pdf-doc-table thead,
+.pdf-doc-table thead tr {
+  background-color: transparent !important;
+}
+
+.pdf-doc-table th {
+  font-size: 8.5px !important;
+  line-height: 1.2 !important;
+  padding: 4px 4px !important;
+  background-color: transparent !important;
+  color: #4B5563 !important;
+  border-bottom: 1px solid #D1D5DB !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.02em !important;
+  font-family: ui-sans-serif, system-ui, sans-serif !important;
+}
+
+.pdf-doc-table td {
+  font-size: 8.5px !important;
+  line-height: 1.25 !important;
+  padding: 4px 4px !important;
+  color: #1F2937 !important;
+  background-color: transparent;
+  vertical-align: top !important;
+  overflow: hidden !important;
+  word-break: break-word !important;
+  border-bottom: 1px solid #E5E7EB;
+}
+
+/* Theme B: Elements with dark background MUST have white font and white icons */
+[data-theme="B"] [class*="bg-[#161922]"],
+[data-theme="B"] [class*="bg-[#1A1A1A]"],
+[data-theme="B"] [class*="bg-[#181B24]"],
+[data-theme="B"] [class*="bg-[#262626]"],
+[data-theme="B"] [class*="bg-[#2A2E3D]"],
+[data-theme="B"] [class*="bg-[#262A36]"],
+[data-theme="B"] [class*="bg-[#1e1e1e]"],
+[data-theme="B"] [class*="bg-[#2d2d2d]"],
+[data-theme="B"] [class*="bg-[#333333]"],
+[data-theme="B"] [class*="bg-[#383838]"],
+[data-theme="B"] [class*="bg-black"],
+[data-theme="B"] [class*="bg-gray-800"],
+[data-theme="B"] [class*="bg-gray-900"],
+[data-theme="B"] .dark-bg,
+[data-theme="B"] aside,
+[data-theme="B"] header,
+[data-theme="B"] table thead {
+  color: #ffffff !important;
+}
+
+[data-theme="B"] [class*="bg-[#161922]"] svg,
+[data-theme="B"] [class*="bg-[#1A1A1A]"] svg,
+[data-theme="B"] [class*="bg-[#181B24]"] svg,
+[data-theme="B"] [class*="bg-[#262626]"] svg,
+[data-theme="B"] [class*="bg-[#2A2E3D]"] svg,
+[data-theme="B"] [class*="bg-[#262A36]"] svg,
+[data-theme="B"] [class*="bg-[#1e1e1e]"] svg,
+[data-theme="B"] [class*="bg-[#2d2d2d]"] svg,
+[data-theme="B"] [class*="bg-[#333333]"] svg,
+[data-theme="B"] [class*="bg-[#383838]"] svg,
+[data-theme="B"] [class*="bg-black"]:not(.fixed) svg,
+[data-theme="B"] [class*="bg-gray-800"] svg,
+[data-theme="B"] [class*="bg-gray-900"] svg,
+[data-theme="B"] .dark-bg svg,
+[data-theme="B"] aside svg,
+[data-theme="B"] header svg,
+[data-theme="B"] table thead svg {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+/* Children inside dark elements in Theme B (buttons, spans, labels, headings) */
+[data-theme="B"] [class*="bg-[#161922]"] :is(h1, h2, h3, h4, h5, h6, span:not(.badge-exclude):not(.ab-theme-letter):not(.theme-toggle-span):not(.ab-theme-toggle *), p, label, button:not([class*="bg-[#f7b611]"]):not([class*="bg-[#F8B800]"]):not(.btn-primary):not(.theme-toggle-btn):not(.ab-theme-toggle *)),
+[data-theme="B"] [class*="bg-[#1A1A1A]"] :is(h1, h2, h3, h4, h5, h6, span:not(.badge-exclude):not(.ab-theme-letter):not(.theme-toggle-span):not(.ab-theme-toggle *), p, label, button:not([class*="bg-[#f7b611]"]):not([class*="bg-[#F8B800]"]):not(.btn-primary):not(.theme-toggle-btn):not(.ab-theme-toggle *)),
+[data-theme="B"] [class*="bg-[#181B24]"] :is(h1, h2, h3, h4, h5, h6, span:not(.badge-exclude):not(.ab-theme-letter):not(.theme-toggle-span):not(.ab-theme-toggle *), p, label, button:not([class*="bg-[#f7b611]"]):not([class*="bg-[#F8B800]"]):not(.btn-primary):not(.theme-toggle-btn):not(.ab-theme-toggle *)),
+[data-theme="B"] [class*="bg-[#262626]"] :is(h1, h2, h3, h4, h5, h6, span:not(.badge-exclude):not(.ab-theme-letter):not(.theme-toggle-span):not(.ab-theme-toggle *), p, label, button:not([class*="bg-[#f7b611]"]):not([class*="bg-[#F8B800]"]):not(.btn-primary):not(.theme-toggle-btn):not(.ab-theme-toggle *)),
+[data-theme="B"] table thead :is(th, span, div) {
+  color: #ffffff !important;
+}
+
+/* Any button that has a dark background in Theme B must have white font and white icon */
+[data-theme="B"] button[class*="bg-[#1"],
+[data-theme="B"] button[class*="bg-[#2"],
+[data-theme="B"] button[class*="bg-[#3"],
+[data-theme="B"] button[class*="bg-black"],
+[data-theme="B"] button[class*="bg-gray-800"],
+[data-theme="B"] button[class*="bg-gray-900"] {
+  color: #ffffff !important;
+}
+
+[data-theme="B"] button[class*="bg-[#1"] svg,
+[data-theme="B"] button[class*="bg-[#2"] svg,
+[data-theme="B"] button[class*="bg-[#3"] svg,
+[data-theme="B"] button[class*="bg-black"] svg,
+[data-theme="B"] button[class*="bg-gray-800"] svg,
+[data-theme="B"] button[class*="bg-gray-900"] svg,
+[data-theme="B"] button[class*="bg-[#1"] span,
+[data-theme="B"] button[class*="bg-[#2"] span,
+[data-theme="B"] button[class*="bg-[#3"] span,
+[data-theme="B"] button[class*="bg-black"] span {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+/* Theme B: Primary yellow buttons keep legible black text/icons */
+[data-theme="B"] button[class*="bg-[#f7b611]"],
+[data-theme="B"] button[class*="bg-[#F8B800]"],
+[data-theme="B"] button.btn-primary,
+[data-theme="B"] .btn-primary {
+  color: #000000 !important;
+}
+
+[data-theme="B"] button[class*="bg-[#f7b611]"] svg,
+[data-theme="B"] button[class*="bg-[#F8B800]"] svg,
+[data-theme="B"] button.btn-primary svg,
+[data-theme="B"] .btn-primary svg,
+[data-theme="B"] button[class*="bg-[#f7b611]"] span,
+[data-theme="B"] button[class*="bg-[#F8B800]"] span,
+[data-theme="B"] button.btn-primary span,
+[data-theme="B"] .btn-primary span {
+  color: #000000 !important;
+  stroke: #000000 !important;
+}
+
+/* Theme B: In Application Header, notification icon and user profile initials MUST be white */
+[data-theme="B"] header .header-notification-btn,
+[data-theme="B"] header button.header-notification-btn,
+[data-theme="B"] .header-notification-btn,
+[data-theme="B"] .header-notification-btn svg,
+[data-theme="B"] .header-notification-icon,
+[data-theme="B"] svg.header-notification-icon {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+  fill: none !important;
+}
+
+[data-theme="B"] header .header-profile-btn,
+[data-theme="B"] header button.header-profile-btn,
+[data-theme="B"] .header-profile-btn,
+[data-theme="B"] .header-profile-btn span,
+[data-theme="B"] .header-profile-initials {
+  color: #ffffff !important;
+}
+
+/* Theme B: In Application Header, Toggle A/B has bg white and black font */
+html[data-theme="B"] .ab-theme-toggle,
+html[data-theme="B"] header .ab-theme-toggle,
+[data-theme="B"] .ab-theme-toggle,
+[data-theme="B"] header .ab-theme-toggle {
+  background-color: #ffffff !important;
+  background: #ffffff !important;
+  border-color: #E0E0E0 !important;
+  border: 1px solid #E0E0E0 !important;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+}
+
+html[data-theme="B"] .ab-theme-toggle,
+html[data-theme="B"] .ab-theme-toggle *,
+html[data-theme="B"] header .ab-theme-toggle,
+html[data-theme="B"] header .ab-theme-toggle *,
+html[data-theme="B"] .ab-theme-toggle button,
+html[data-theme="B"] .ab-theme-toggle button span,
+html[data-theme="B"] .theme-toggle-btn,
+html[data-theme="B"] .theme-toggle-btn span,
+html[data-theme="B"] .ab-theme-letter,
+html[data-theme="B"] header .ab-theme-toggle button,
+html[data-theme="B"] header .theme-toggle-btn,
+html[data-theme="B"] header .theme-toggle-btn span,
+html[data-theme="B"] header .ab-theme-letter,
+[data-theme="B"] .ab-theme-toggle,
+[data-theme="B"] .ab-theme-toggle *,
+[data-theme="B"] header .ab-theme-toggle,
+[data-theme="B"] header .ab-theme-toggle *,
+[data-theme="B"] .ab-theme-toggle button,
+[data-theme="B"] .ab-theme-toggle button span,
+[data-theme="B"] .theme-toggle-btn,
+[data-theme="B"] .theme-toggle-btn span,
+[data-theme="B"] .ab-theme-letter,
+[data-theme="B"] header .ab-theme-toggle button,
+[data-theme="B"] header .theme-toggle-btn,
+[data-theme="B"] header .theme-toggle-btn span,
+[data-theme="B"] header .ab-theme-letter {
+  color: #000000 !important;
+  -webkit-text-fill-color: #000000 !important;
+  font-family: 'Open Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+}
+
+html[data-theme="B"] .ab-theme-toggle button[data-active="true"],
+html[data-theme="B"] header .ab-theme-toggle button[data-active="true"],
+[data-theme="B"] .ab-theme-toggle button[data-active="true"],
+[data-theme="B"] header .ab-theme-toggle button[data-active="true"] {
+  background-color: #F8B800 !important;
+  color: #000000 !important;
+  -webkit-text-fill-color: #000000 !important;
+}
+
+html[data-theme="B"] .ab-theme-toggle button[data-active="true"] span,
+html[data-theme="B"] header .ab-theme-toggle button[data-active="true"] span,
+[data-theme="B"] .ab-theme-toggle button[data-active="true"] span,
+[data-theme="B"] header .ab-theme-toggle button[data-active="true"] span {
+  color: #000000 !important;
+  -webkit-text-fill-color: #000000 !important;
+}
+
+html[data-theme="B"] .ab-theme-toggle button[data-active="false"],
+html[data-theme="B"] header .ab-theme-toggle button[data-active="false"],
+[data-theme="B"] .ab-theme-toggle button[data-active="false"],
+[data-theme="B"] header .ab-theme-toggle button[data-active="false"] {
+  color: #000000 !important;
+  -webkit-text-fill-color: #000000 !important;
+}
+
+html[data-theme="B"] .ab-theme-toggle button[data-active="false"] span,
+html[data-theme="B"] header .ab-theme-toggle button[data-active="false"] span,
+[data-theme="B"] .ab-theme-toggle button[data-active="false"] span,
+[data-theme="B"] header .ab-theme-toggle button[data-active="false"] span {
+  color: #000000 !important;
+  -webkit-text-fill-color: #000000 !important;
+}
+
+html[data-theme="B"] .ab-theme-toggle button[data-active="false"]:hover,
+html[data-theme="B"] header .ab-theme-toggle button[data-active="false"]:hover,
+[data-theme="B"] .ab-theme-toggle button[data-active="false"]:hover,
+[data-theme="B"] header .ab-theme-toggle button[data-active="false"]:hover {
+  background-color: #F3F4F6 !important;
+  color: #000000 !important;
+  -webkit-text-fill-color: #000000 !important;
+}
+
+/* Theme B: In order listing Filter popup the dropdown icon is dark */
+[data-theme="B"] .filter-popup-modal svg.dropdown-chevron,
+[data-theme="B"] .filter-popup-modal [data-dropdown-icon="true"],
+[data-theme="B"] svg.dropdown-chevron,
+[data-theme="B"] [data-dropdown-icon="true"] {
+  color: #262626 !important;
+  stroke: #262626 !important;
+}
+
+/* Theme B: In user profile dropdown, data MUST have dark font */
+[data-theme="B"] .profile-dropdown-card,
+[data-theme="B"] header .profile-dropdown-card,
+[data-theme="B"] .profile-dropdown-card span:not(.header-profile-initials),
+[data-theme="B"] header .profile-dropdown-card span:not(.header-profile-initials),
+[data-theme="B"] .profile-dropdown-card p,
+[data-theme="B"] header .profile-dropdown-card p,
+[data-theme="B"] .profile-dropdown-card div,
+[data-theme="B"] header .profile-dropdown-card div {
+  color: #1A1A1A;
+}
+
+[data-theme="B"] .profile-dropdown-card .profile-text-dark,
+[data-theme="B"] header .profile-dropdown-card .profile-text-dark {
+  color: #1A1A1A !important;
+}
+
+[data-theme="B"] .profile-dropdown-card .text-gray-500,
+[data-theme="B"] header .profile-dropdown-card .text-gray-500,
+[data-theme="B"] .profile-dropdown-card .text-gray-400,
+[data-theme="B"] header .profile-dropdown-card .text-gray-400 {
+  color: #6B7280 !important;
+}
+
+[data-theme="B"] .profile-dropdown-card .text-red-600,
+[data-theme="B"] header .profile-dropdown-card .text-red-600 {
+  color: #DC2626 !important;
+}
+
+[data-theme="B"] .profile-dropdown-card svg,
+[data-theme="B"] header .profile-dropdown-card svg {
+  color: #6B7280 !important;
+  stroke: #6B7280 !important;
+}
+
+[data-theme="B"] .profile-dropdown-card .header-profile-initials,
+[data-theme="B"] header .profile-dropdown-card .header-profile-initials {
+  color: #ffffff !important;
+}
+
+/* ==========================================================================
+   Theme B: Notification Module - Dark Font & High-Contrast Styling
+   ========================================================================== */
+
+/* Notification drawer container */
+[data-theme="B"] .notification-center-drawer,
+[data-theme="B"] header .notification-center-drawer,
+[data-theme="B"] .notification-center-overlay .notification-center-drawer,
+[data-theme="B"] header .notification-center-overlay .notification-center-drawer {
+  color: #1A1A1A !important;
+  background-color: #ffffff !important;
+}
+
+/* Titles and Headings in Notification Center */
+[data-theme="B"] .notification-center-drawer h2,
+[data-theme="B"] header .notification-center-drawer h2,
+[data-theme="B"] .notification-drawer-title,
+[data-theme="B"] header .notification-drawer-title,
+[data-theme="B"] .notification-empty-title,
+[data-theme="B"] header .notification-empty-title {
+  color: #111827 !important;
+}
+
+[data-theme="B"] .notification-center-drawer h3,
+[data-theme="B"] header .notification-center-drawer h3,
+[data-theme="B"] .notification-title,
+[data-theme="B"] header .notification-title {
+  color: #1A1A1A !important;
+}
+
+/* Paragraphs and Descriptions in Notification Center */
+[data-theme="B"] .notification-center-drawer p,
+[data-theme="B"] header .notification-center-drawer p,
+[data-theme="B"] .notification-desc,
+[data-theme="B"] header .notification-desc,
+[data-theme="B"] .notification-empty-desc,
+[data-theme="B"] header .notification-empty-desc {
+  color: #4B5563 !important;
+}
+
+/* General Spans, Labels, Divs in Notification Center */
+[data-theme="B"] .notification-center-drawer span:not(.notification-unread-badge):not(.notification-badge),
+[data-theme="B"] header .notification-center-drawer span:not(.notification-unread-badge):not(.notification-badge),
+[data-theme="B"] .notification-center-drawer label,
+[data-theme="B"] header .notification-center-drawer label,
+[data-theme="B"] .notification-filter-text,
+[data-theme="B"] header .notification-filter-text {
+  color: #374151 !important;
+}
+
+/* Timestamps */
+[data-theme="B"] .notification-center-drawer .notification-timestamp,
+[data-theme="B"] header .notification-center-drawer .notification-timestamp,
+[data-theme="B"] .notification-center-drawer .text-gray-400,
+[data-theme="B"] header .notification-center-drawer .text-gray-400,
+[data-theme="B"] .notification-center-drawer .text-gray-500,
+[data-theme="B"] header .notification-center-drawer .text-gray-500 {
+  color: #6B7280 !important;
+}
+
+/* Filter bar & Select Dropdown in Notification Center */
+[data-theme="B"] .notification-filter-bar,
+[data-theme="B"] header .notification-filter-bar,
+[data-theme="B"] .notification-filter-label,
+[data-theme="B"] header .notification-filter-label {
+  color: #374151 !important;
+}
+
+[data-theme="B"] .notification-filter-select,
+[data-theme="B"] header .notification-filter-select,
+[data-theme="B"] .notification-center-drawer select {
+  color: #1F2937 !important;
+  background-color: #ffffff !important;
+  border-color: #D1D5DB !important;
+}
+
+/* Action Buttons inside Notification Items */
+[data-theme="B"] .notification-action-button,
+[data-theme="B"] header .notification-action-button,
+[data-theme="B"] .notification-action-button span,
+[data-theme="B"] header .notification-action-button span {
+  color: #111827 !important;
+  font-weight: 600 !important;
+}
+
+[data-theme="B"] .notification-action-button svg,
+[data-theme="B"] header .notification-action-button svg {
+  color: #111827 !important;
+  stroke: #111827 !important;
+}
+
+/* Header Close & Trash Action Buttons */
+[data-theme="B"] .notification-action-btn,
+[data-theme="B"] header .notification-action-btn {
+  color: #6B7280 !important;
+}
+
+[data-theme="B"] .notification-action-btn svg,
+[data-theme="B"] header .notification-action-btn svg {
+  color: #6B7280 !important;
+  stroke: #6B7280 !important;
+}
+
+[data-theme="B"] .notification-action-btn:hover svg,
+[data-theme="B"] header .notification-action-btn:hover svg {
+  color: #111827 !important;
+  stroke: #111827 !important;
+}
+
+/* Scenario Badges in Notification Center */
+[data-theme="B"] .notification-badge.bg-red-100,
+[data-theme="B"] header .notification-badge.bg-red-100 {
+  background-color: #FEE2E2 !important;
+  color: #991B1B !important;
+  border-color: #FECACA !important;
+}
+
+[data-theme="B"] .notification-badge.bg-amber-100,
+[data-theme="B"] header .notification-badge.bg-amber-100 {
+  background-color: #FEF3C7 !important;
+  color: #92400E !important;
+  border-color: #FDE68A !important;
+}
+
+[data-theme="B"] .notification-badge.bg-emerald-100,
+[data-theme="B"] header .notification-badge.bg-emerald-100 {
+  background-color: #D1FAE5 !important;
+  color: #065F46 !important;
+  border-color: #A7F3D0 !important;
+}
+
+[data-theme="B"] .notification-badge.bg-rose-100,
+[data-theme="B"] header .notification-badge.bg-rose-100 {
+  background-color: #FFE4E6 !important;
+  color: #9F1239 !important;
+  border-color: #FECDD3 !important;
+}
+
+/* Scenario Icons inside Notification Drawer */
+[data-theme="B"] .notification-scenario-icon svg.text-red-600,
+[data-theme="B"] header .notification-scenario-icon svg.text-red-600,
+[data-theme="B"] .notification-center-drawer svg.text-red-600,
+[data-theme="B"] header .notification-center-drawer svg.text-red-600 {
+  color: #DC2626 !important;
+  stroke: #DC2626 !important;
+}
+
+[data-theme="B"] .notification-scenario-icon svg.text-amber-600,
+[data-theme="B"] header .notification-scenario-icon svg.text-amber-600,
+[data-theme="B"] .notification-center-drawer svg.text-amber-600,
+[data-theme="B"] header .notification-center-drawer svg.text-amber-600 {
+  color: #D97706 !important;
+  stroke: #D97706 !important;
+}
+
+[data-theme="B"] .notification-scenario-icon svg.text-emerald-600,
+[data-theme="B"] header .notification-scenario-icon svg.text-emerald-600,
+[data-theme="B"] .notification-center-drawer svg.text-emerald-600,
+[data-theme="B"] header .notification-center-drawer svg.text-emerald-600 {
+  color: #059669 !important;
+  stroke: #059669 !important;
+}
+
+[data-theme="B"] .notification-scenario-icon svg.text-rose-600,
+[data-theme="B"] header .notification-scenario-icon svg.text-rose-600,
+[data-theme="B"] .notification-center-drawer svg.text-rose-600,
+[data-theme="B"] header .notification-center-drawer svg.text-rose-600 {
+  color: #E11D48 !important;
+  stroke: #E11D48 !important;
+}
+
+[data-theme="B"] .notification-scenario-icon svg.text-blue-600,
+[data-theme="B"] header .notification-scenario-icon svg.text-blue-600,
+[data-theme="B"] .notification-center-drawer svg.text-blue-600,
+[data-theme="B"] header .notification-center-drawer svg.text-blue-600 {
+  color: #2563EB !important;
+  stroke: #2563EB !important;
+}
+
+[data-theme="B"] button.btn-primary span,
+[data-theme="B"] .btn-primary span,
+[data-theme="B"] button.btn-primary svg,
+[data-theme="B"] .btn-primary svg {
+  color: #000000 !important;
+  stroke: #000000 !important;
+}
+
+/* 🌟 Primary Button styling: #f7b611 with white font */
+.btn-primary,
+button.btn-primary,
+.primary-btn {
+  background-color: #f7b611 !important;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+  transition: all 150ms ease-in-out;
+}
+.btn-primary:hover,
+button.btn-primary:hover,
+.primary-btn:hover {
+  background-color: #e2a508 !important;
+  color: #ffffff !important;
+}
+
+/* Field Header utility class */
+.field-header {
+  font-family: 'Open Sans', system-ui, sans-serif !important;
+  font-weight: 300 !important;
+  color: #8f9494;
+}
+
+/* Normal content utility class for 15px font size and #8f9494 color */
+.text-normal-content {
+  font-size: 15px !important;
+  color: #8f9494 !important;
+}
+
+/* 📐 Remove corner borders from all table containers and search/filter containers */
+table,
+.table-container,
+div:has(> table),
+div:has(> div > table) {
+  border-radius: 0px !important;
+}
+
+/* 🎨 Theme B: Filter popup dropdown icons to be dark (#1A1A1A) */
+[data-theme="B"] .searchable-multiselect svg,
+[data-theme="B"] .searchable-multiselect button svg,
+[data-theme="B"] .dropdown-chevron,
+[data-theme="B"] [data-dropdown-icon="true"] {
+  color: #1A1A1A !important;
+  stroke: #1A1A1A !important;
+}
+

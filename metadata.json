@@ -1,0 +1,8 @@
+{
+  "name": "APB GEBOL Order Processing System",
+  "description": "Enterprise AI purchase order processing system converting raw POs into ERP-ready XML",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
