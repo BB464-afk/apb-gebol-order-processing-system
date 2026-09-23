@@ -270,7 +270,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       <div className="w-full md:w-1/2 lg:w-[55%] h-64 sm:h-80 md:h-screen relative bg-[#1A1A1A] overflow-hidden shrink-0">
         {!heroImgError ? (
           <img
-            src="/%20B%20Login.png"
+            src="/B%20Login.png"
             alt="GEBOL Professional Work Equipment"
             className="w-full h-full object-cover object-center"
             onError={() => setHeroImgError(true)}

@@ -238,50 +238,50 @@ table:not(.pdf-doc-table) thead tr th {
 }
 
 /* Theme B: Elements with dark background MUST have white font and white icons */
-[data-theme="B"] [class*="bg-[#161922]"]:not(.notification-center-drawer):not(.notification-center-overlay),
-[data-theme="B"] [class*="bg-[#1A1A1A]"]:not(.notification-center-drawer):not(.notification-center-overlay),
-[data-theme="B"] [class*="bg-[#181B24]"]:not(.notification-center-drawer):not(.notification-center-overlay),
-[data-theme="B"] [class*="bg-[#262626]"]:not(.notification-center-drawer):not(.notification-center-overlay),
-[data-theme="B"] [class*="bg-[#2A2E3D]"]:not(.notification-center-drawer):not(.notification-center-overlay),
-[data-theme="B"] [class*="bg-[#262A36]"]:not(.notification-center-drawer):not(.notification-center-overlay),
-[data-theme="B"] [class*="bg-[#1e1e1e]"]:not(.notification-center-drawer):not(.notification-center-overlay),
-[data-theme="B"] [class*="bg-[#2d2d2d]"]:not(.notification-center-drawer):not(.notification-center-overlay),
-[data-theme="B"] [class*="bg-[#333333]"]:not(.notification-center-drawer):not(.notification-center-overlay),
-[data-theme="B"] [class*="bg-[#383838]"]:not(.notification-center-drawer):not(.notification-center-overlay),
-[data-theme="B"] [class*="bg-black"]:not(.notification-center-drawer):not(.notification-center-overlay),
-[data-theme="B"] [class*="bg-gray-800"]:not(.notification-center-drawer):not(.notification-center-overlay),
-[data-theme="B"] [class*="bg-gray-900"]:not(.notification-center-drawer):not(.notification-center-overlay),
+[data-theme="B"] [class*="bg-[#161922]"]:not(.notification-center-drawer):not(.notification-center-overlay):not(.profile-dropdown-card):not(.profile-dropdown-card *),
+[data-theme="B"] [class*="bg-[#1A1A1A]"]:not(.notification-center-drawer):not(.notification-center-overlay):not(.profile-dropdown-card):not(.profile-dropdown-card *),
+[data-theme="B"] [class*="bg-[#181B24]"]:not(.notification-center-drawer):not(.notification-center-overlay):not(.profile-dropdown-card):not(.profile-dropdown-card *),
+[data-theme="B"] [class*="bg-[#262626]"]:not(.notification-center-drawer):not(.notification-center-overlay):not(.profile-dropdown-card):not(.profile-dropdown-card *),
+[data-theme="B"] [class*="bg-[#2A2E3D]"]:not(.notification-center-drawer):not(.notification-center-overlay):not(.profile-dropdown-card):not(.profile-dropdown-card *),
+[data-theme="B"] [class*="bg-[#262A36]"]:not(.notification-center-drawer):not(.notification-center-overlay):not(.profile-dropdown-card):not(.profile-dropdown-card *),
+[data-theme="B"] [class*="bg-[#1e1e1e]"]:not(.notification-center-drawer):not(.notification-center-overlay):not(.profile-dropdown-card):not(.profile-dropdown-card *),
+[data-theme="B"] [class*="bg-[#2d2d2d]"]:not(.notification-center-drawer):not(.notification-center-overlay):not(.profile-dropdown-card):not(.profile-dropdown-card *),
+[data-theme="B"] [class*="bg-[#333333]"]:not(.notification-center-drawer):not(.notification-center-overlay):not(.profile-dropdown-card):not(.profile-dropdown-card *),
+[data-theme="B"] [class*="bg-[#383838]"]:not(.notification-center-drawer):not(.notification-center-overlay):not(.profile-dropdown-card):not(.profile-dropdown-card *),
+[data-theme="B"] [class*="bg-black"]:not(.notification-center-drawer):not(.notification-center-overlay):not(.profile-dropdown-card):not(.profile-dropdown-card *),
+[data-theme="B"] [class*="bg-gray-800"]:not(.notification-center-drawer):not(.notification-center-overlay):not(.profile-dropdown-card):not(.profile-dropdown-card *),
+[data-theme="B"] [class*="bg-gray-900"]:not(.notification-center-drawer):not(.notification-center-overlay):not(.profile-dropdown-card):not(.profile-dropdown-card *),
 [data-theme="B"] .dark-bg,
 [data-theme="B"] aside,
-[data-theme="B"] header > *:not(.notification-center-overlay):not(.notification-center-drawer),
+[data-theme="B"] header > *:not(.notification-center-overlay):not(.notification-center-drawer):not(.profile-dropdown-card):not(:has(.profile-dropdown-card)),
 [data-theme="B"] table thead {
   color: #ffffff !important;
 }
 
-[data-theme="B"] [class*="bg-[#161922]"] svg:not(.notification-center-drawer *):not(.notification-center-overlay *),
-[data-theme="B"] [class*="bg-[#1A1A1A]"] svg:not(.notification-center-drawer *):not(.notification-center-overlay *),
-[data-theme="B"] [class*="bg-[#181B24]"] svg:not(.notification-center-drawer *):not(.notification-center-overlay *),
-[data-theme="B"] [class*="bg-[#262626]"] svg:not(.notification-center-drawer *):not(.notification-center-overlay *),
-[data-theme="B"] [class*="bg-[#2A2E3D]"] svg:not(.notification-center-drawer *):not(.notification-center-overlay *),
-[data-theme="B"] [class*="bg-[#262A36]"] svg:not(.notification-center-drawer *):not(.notification-center-overlay *),
-[data-theme="B"] [class*="bg-[#1e1e1e]"] svg:not(.notification-center-drawer *):not(.notification-center-overlay *),
-[data-theme="B"] [class*="bg-[#2d2d2d]"] svg:not(.notification-center-drawer *):not(.notification-center-overlay *),
-[data-theme="B"] [class*="bg-[#333333]"] svg:not(.notification-center-drawer *):not(.notification-center-overlay *),
-[data-theme="B"] [class*="bg-[#383838]"] svg:not(.notification-center-drawer *):not(.notification-center-overlay *),
-[data-theme="B"] [class*="bg-black"]:not(.fixed) svg:not(.notification-center-drawer *):not(.notification-center-overlay *),
-[data-theme="B"] [class*="bg-gray-800"] svg:not(.notification-center-drawer *):not(.notification-center-overlay *),
-[data-theme="B"] [class*="bg-gray-900"] svg:not(.notification-center-drawer *):not(.notification-center-overlay *),
-[data-theme="B"] .dark-bg svg:not(.notification-center-drawer *):not(.notification-center-overlay *),
-[data-theme="B"] aside svg:not(.notification-center-drawer *):not(.notification-center-overlay *),
-[data-theme="B"] header > *:not(.notification-center-overlay):not(.notification-center-drawer) svg,
+[data-theme="B"] [class*="bg-[#161922]"] svg:not(.notification-center-drawer *):not(.notification-center-overlay *):not(.profile-dropdown-card *),
+[data-theme="B"] [class*="bg-[#1A1A1A]"] svg:not(.notification-center-drawer *):not(.notification-center-overlay *):not(.profile-dropdown-card *),
+[data-theme="B"] [class*="bg-[#181B24]"] svg:not(.notification-center-drawer *):not(.notification-center-overlay *):not(.profile-dropdown-card *),
+[data-theme="B"] [class*="bg-[#262626]"] svg:not(.notification-center-drawer *):not(.notification-center-overlay *):not(.profile-dropdown-card *),
+[data-theme="B"] [class*="bg-[#2A2E3D]"] svg:not(.notification-center-drawer *):not(.notification-center-overlay *):not(.profile-dropdown-card *),
+[data-theme="B"] [class*="bg-[#262A36]"] svg:not(.notification-center-drawer *):not(.notification-center-overlay *):not(.profile-dropdown-card *),
+[data-theme="B"] [class*="bg-[#1e1e1e]"] svg:not(.notification-center-drawer *):not(.notification-center-overlay *):not(.profile-dropdown-card *),
+[data-theme="B"] [class*="bg-[#2d2d2d]"] svg:not(.notification-center-drawer *):not(.notification-center-overlay *):not(.profile-dropdown-card *),
+[data-theme="B"] [class*="bg-[#333333]"] svg:not(.notification-center-drawer *):not(.notification-center-overlay *):not(.profile-dropdown-card *),
+[data-theme="B"] [class*="bg-[#383838]"] svg:not(.notification-center-drawer *):not(.notification-center-overlay *):not(.profile-dropdown-card *),
+[data-theme="B"] [class*="bg-black"]:not(.fixed) svg:not(.notification-center-drawer *):not(.notification-center-overlay *):not(.profile-dropdown-card *),
+[data-theme="B"] [class*="bg-gray-800"] svg:not(.notification-center-drawer *):not(.notification-center-overlay *):not(.profile-dropdown-card *),
+[data-theme="B"] [class*="bg-gray-900"] svg:not(.notification-center-drawer *):not(.notification-center-overlay *):not(.profile-dropdown-card *),
+[data-theme="B"] .dark-bg svg:not(.notification-center-drawer *):not(.notification-center-overlay *):not(.profile-dropdown-card *),
+[data-theme="B"] aside svg:not(.notification-center-drawer *):not(.notification-center-overlay *):not(.profile-dropdown-card *),
+[data-theme="B"] header > *:not(.notification-center-overlay):not(.notification-center-drawer):not(.profile-dropdown-card) svg:not(.profile-dropdown-card *),
 [data-theme="B"] table thead svg {
   color: #ffffff !important;
   stroke: #ffffff !important;
 }
 
 /* Children inside dark elements in Theme B (buttons, spans, labels, headings) */
-[data-theme="B"] [class*="bg-[#161922]"] :is(h1:not(.notification-center-drawer *):not(.notification-center-overlay *), h2:not(.notification-center-drawer *):not(.notification-center-overlay *), h3:not(.notification-center-drawer *):not(.notification-center-overlay *), h4:not(.notification-center-drawer *):not(.notification-center-overlay *), h5:not(.notification-center-drawer *):not(.notification-center-overlay *), h6:not(.notification-center-drawer *):not(.notification-center-overlay *), span:not(.badge-exclude):not(.ab-theme-letter):not(.theme-toggle-span):not(.ab-theme-toggle *):not(.notification-center-drawer *):not(.notification-center-overlay *), p:not(.notification-center-drawer *):not(.notification-center-overlay *), label:not(.notification-center-drawer *):not(.notification-center-overlay *), button:not([class*="bg-[#f7b611]"]):not([class*="bg-[#F8B800]"]):not(.btn-primary):not(.theme-toggle-btn):not(.ab-theme-toggle *):not(.notification-center-drawer *):not(.notification-center-overlay *)),
-[data-theme="B"] [class*="bg-[#1A1A1A]"] :is(h1:not(.notification-center-drawer *):not(.notification-center-overlay *), h2:not(.notification-center-drawer *):not(.notification-center-overlay *), h3:not(.notification-center-drawer *):not(.notification-center-overlay *), h4:not(.notification-center-drawer *):not(.notification-center-overlay *), h5:not(.notification-center-drawer *):not(.notification-center-overlay *), h6:not(.notification-center-drawer *):not(.notification-center-overlay *), span:not(.badge-exclude):not(.ab-theme-letter):not(.theme-toggle-span):not(.ab-theme-toggle *):not(.notification-center-drawer *):not(.notification-center-overlay *), p:not(.notification-center-drawer *):not(.notification-center-overlay *), label:not(.notification-center-drawer *):not(.notification-center-overlay *), button:not([class*="bg-[#f7b611]"]):not([class*="bg-[#F8B800]"]):not(.btn-primary):not(.theme-toggle-btn):not(.ab-theme-toggle *):not(.notification-center-drawer *):not(.notification-center-overlay *)),
+[data-theme="B"] [class*="bg-[#161922]"] :is(h1:not(.notification-center-drawer *):not(.notification-center-overlay *):not(.profile-dropdown-card *), h2:not(.notification-center-drawer *):not(.notification-center-overlay *):not(.profile-dropdown-card *), h3:not(.notification-center-drawer *):not(.notification-center-overlay *):not(.profile-dropdown-card *), h4:not(.notification-center-drawer *):not(.notification-center-overlay *):not(.profile-dropdown-card *), h5:not(.notification-center-drawer *):not(.notification-center-overlay *):not(.profile-dropdown-card *), h6:not(.notification-center-drawer *):not(.notification-center-overlay *):not(.profile-dropdown-card *), span:not(.badge-exclude):not(.ab-theme-letter):not(.theme-toggle-span):not(.ab-theme-toggle *):not(.notification-center-drawer *):not(.notification-center-overlay *):not(.profile-dropdown-card *), p:not(.notification-center-drawer *):not(.notification-center-overlay *):not(.profile-dropdown-card *), label:not(.notification-center-drawer *):not(.notification-center-overlay *):not(.profile-dropdown-card *), button:not([class*="bg-[#f7b611]"]):not([class*="bg-[#F8B800]"]):not(.btn-primary):not(.theme-toggle-btn):not(.ab-theme-toggle *):not(.notification-center-drawer *):not(.notification-center-overlay *):not(.profile-dropdown-card *)),
+[data-theme="B"] [class*="bg-[#1A1A1A]"] :is(h1:not(.notification-center-drawer *):not(.notification-center-overlay *):not(.profile-dropdown-card *), h2:not(.notification-center-drawer *):not(.notification-center-overlay *):not(.profile-dropdown-card *), h3:not(.notification-center-drawer *):not(.notification-center-overlay *):not(.profile-dropdown-card *), h4:not(.notification-center-drawer *):not(.notification-center-overlay *):not(.profile-dropdown-card *), h5:not(.notification-center-drawer *):not(.notification-center-overlay *):not(.profile-dropdown-card *), h6:not(.notification-center-drawer *):not(.notification-center-overlay *):not(.profile-dropdown-card *), span:not(.badge-exclude):not(.ab-theme-letter):not(.theme-toggle-span):not(.ab-theme-toggle *):not(.notification-center-drawer *):not(.notification-center-overlay *):not(.profile-dropdown-card *), p:not(.notification-center-drawer *):not(.notification-center-overlay *):not(.profile-dropdown-card *), label:not(.notification-center-drawer *):not(.notification-center-overlay *):not(.profile-dropdown-card *), button:not([class*="bg-[#f7b611]"]):not([class*="bg-[#F8B800]"]):not(.btn-primary):not(.theme-toggle-btn):not(.ab-theme-toggle *):not(.notification-center-drawer *):not(.notification-center-overlay *):not(.profile-dropdown-card *)),
 [data-theme="B"] [class*="bg-[#181B24]"] :is(h1, h2, h3, h4, h5, h6, span:not(.badge-exclude):not(.ab-theme-letter):not(.theme-toggle-span):not(.ab-theme-toggle *), p, label, button:not([class*="bg-[#f7b611]"]):not([class*="bg-[#F8B800]"]):not(.btn-primary):not(.theme-toggle-btn):not(.ab-theme-toggle *)),
 [data-theme="B"] [class*="bg-[#262626]"] :is(h1, h2, h3, h4, h5, h6, span:not(.badge-exclude):not(.ab-theme-letter):not(.theme-toggle-span):not(.ab-theme-toggle *), p, label, button:not([class*="bg-[#f7b611]"]):not([class*="bg-[#F8B800]"]):not(.btn-primary):not(.theme-toggle-btn):not(.ab-theme-toggle *)),
 [data-theme="B"] table thead :is(th, span, div) {
@@ -446,23 +446,50 @@ html[data-theme="B"] header .ab-theme-toggle button[data-active="false"]:hover,
   stroke: #262626 !important;
 }
 
-/* Theme B: In user profile dropdown, data MUST have dark font */
+/* ==========================================================================
+   Theme B: User Profile Dropdown - Dark Font & High-Contrast Styling
+   ========================================================================== */
+
+/* Profile dropdown container */
 [data-theme="B"] .profile-dropdown-card,
-[data-theme="B"] header .profile-dropdown-card,
-[data-theme="B"] .profile-dropdown-card span:not(.header-profile-initials),
-[data-theme="B"] header .profile-dropdown-card span:not(.header-profile-initials),
-[data-theme="B"] .profile-dropdown-card p,
-[data-theme="B"] header .profile-dropdown-card p,
-[data-theme="B"] .profile-dropdown-card div,
-[data-theme="B"] header .profile-dropdown-card div {
-  color: #1A1A1A;
+[data-theme="B"] header .profile-dropdown-card {
+  background-color: #ffffff !important;
+  color: #1A1A1A !important;
+  border-color: #E0E0E0 !important;
 }
 
+/* User name, dark text classes, and strong text */
+[data-theme="B"] .profile-dropdown-card .profile-user-name,
+[data-theme="B"] header .profile-dropdown-card .profile-user-name,
 [data-theme="B"] .profile-dropdown-card .profile-text-dark,
-[data-theme="B"] header .profile-dropdown-card .profile-text-dark {
+[data-theme="B"] header .profile-dropdown-card .profile-text-dark,
+[data-theme="B"] .profile-dropdown-card .profile-detail-value,
+[data-theme="B"] header .profile-dropdown-card .profile-detail-value,
+[data-theme="B"] .profile-dropdown-card strong,
+[data-theme="B"] header .profile-dropdown-card strong {
+  color: #1A1A1A !important;
+  font-weight: 700 !important;
+}
+
+/* All headings, paragraphs, and general text inside profile dropdown */
+[data-theme="B"] .profile-dropdown-card :is(h1, h2, h3, h4, h5, h6, p, label),
+[data-theme="B"] header .profile-dropdown-card :is(h1, h2, h3, h4, h5, h6, p, label) {
   color: #1A1A1A !important;
 }
 
+/* All spans except the avatar initials */
+[data-theme="B"] .profile-dropdown-card span:not(.header-profile-initials):not(.profile-signout-btn *),
+[data-theme="B"] header .profile-dropdown-card span:not(.header-profile-initials):not(.profile-signout-btn *),
+[data-theme="B"] .profile-dropdown-card div:not([class*="bg-[#262626]"]):not(.profile-signout-container *),
+[data-theme="B"] header .profile-dropdown-card div:not([class*="bg-[#262626]"]):not(.profile-signout-container *) {
+  color: #1A1A1A !important;
+}
+
+/* Subtitle and field labels */
+[data-theme="B"] .profile-dropdown-card .profile-user-email,
+[data-theme="B"] header .profile-dropdown-card .profile-user-email,
+[data-theme="B"] .profile-dropdown-card .profile-detail-label,
+[data-theme="B"] header .profile-dropdown-card .profile-detail-label,
 [data-theme="B"] .profile-dropdown-card .text-gray-500,
 [data-theme="B"] header .profile-dropdown-card .text-gray-500,
 [data-theme="B"] .profile-dropdown-card .text-gray-400,
@@ -470,19 +497,47 @@ html[data-theme="B"] header .ab-theme-toggle button[data-active="false"]:hover,
   color: #6B7280 !important;
 }
 
+/* Detail icons */
+[data-theme="B"] .profile-dropdown-card .profile-detail-icon,
+[data-theme="B"] header .profile-dropdown-card .profile-detail-icon,
+[data-theme="B"] .profile-dropdown-card svg.text-gray-400,
+[data-theme="B"] header .profile-dropdown-card svg.text-gray-400 {
+  color: #9CA3AF !important;
+  stroke: #9CA3AF !important;
+}
+
+[data-theme="B"] .profile-dropdown-card svg.text-\[\#ED6C02\],
+[data-theme="B"] header .profile-dropdown-card svg.text-\[\#ED6C02\] {
+  color: #ED6C02 !important;
+  stroke: #ED6C02 !important;
+}
+
+[data-theme="B"] .profile-dropdown-card svg.text-blue-500,
+[data-theme="B"] header .profile-dropdown-card svg.text-blue-500 {
+  color: #3B82F6 !important;
+  stroke: #3B82F6 !important;
+}
+
+/* Sign out action button and red text */
+[data-theme="B"] .profile-dropdown-card .profile-signout-btn,
+[data-theme="B"] header .profile-dropdown-card .profile-signout-btn,
+[data-theme="B"] .profile-dropdown-card .profile-signout-btn span,
+[data-theme="B"] header .profile-dropdown-card .profile-signout-btn span,
 [data-theme="B"] .profile-dropdown-card .text-red-600,
 [data-theme="B"] header .profile-dropdown-card .text-red-600 {
   color: #DC2626 !important;
 }
 
-[data-theme="B"] .profile-dropdown-card svg,
-[data-theme="B"] header .profile-dropdown-card svg {
-  color: #6B7280 !important;
-  stroke: #6B7280 !important;
+[data-theme="B"] .profile-dropdown-card .profile-signout-btn svg,
+[data-theme="B"] header .profile-dropdown-card .profile-signout-btn svg {
+  color: #DC2626 !important;
+  stroke: #DC2626 !important;
 }
 
+/* Keep circular avatar badge initials crisp white on dark background */
 [data-theme="B"] .profile-dropdown-card .header-profile-initials,
-[data-theme="B"] header .profile-dropdown-card .header-profile-initials {
+[data-theme="B"] header .profile-dropdown-card .header-profile-initials,
+[data-theme="B"] .header-profile-initials {
   color: #ffffff !important;
 }
 

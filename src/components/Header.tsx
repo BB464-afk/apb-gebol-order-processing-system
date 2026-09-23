@@ -126,7 +126,7 @@ export const Header: React.FC<HeaderProps> = ({
           {isProfileOpen && (
             <div className="profile-dropdown-card absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-xl border border-[#E0E0E0] py-3 px-4 z-50 animate-in fade-in slide-in-from-top-1 duration-150">
               {/* Header / Avatar & Name */}
-              <div className="flex items-center gap-3 pb-3 border-b border-gray-100">
+              <div className="flex items-center gap-3 pb-3 border-b border-gray-100 profile-dropdown-header">
                 <div
                   style={{ borderRadius: '50%', color: '#ffffff' }}
                   className="w-10 h-10 rounded-full bg-[#262626] text-white border-2 border-[#F8B800] flex items-center justify-center font-bold text-sm shrink-0"
@@ -136,36 +136,36 @@ export const Header: React.FC<HeaderProps> = ({
                   </span>
                 </div>
                 <div className="flex flex-col min-w-0">
-                  <span className="text-sm font-bold text-[#1A1A1A] profile-text-dark truncate">
+                  <span className="text-sm font-bold text-[#1A1A1A] profile-text-dark profile-user-name truncate">
                     {user.name}
                   </span>
-                  <span className="text-xs text-gray-500 font-medium truncate">
+                  <span className="text-xs text-gray-500 profile-user-email font-medium truncate">
                     {user.email}
                   </span>
                 </div>
               </div>
 
               {/* User Details */}
-              <div className="py-2.5 space-y-2 text-xs">
-                <div className="flex items-start gap-2 text-gray-600">
-                  <Mail className="w-3.5 h-3.5 mt-0.5 text-gray-400 shrink-0" />
+              <div className="py-2.5 space-y-2 text-xs profile-details-body">
+                <div className="flex items-start gap-2 text-gray-600 profile-detail-row">
+                  <Mail className="w-3.5 h-3.5 mt-0.5 text-gray-400 shrink-0 profile-detail-icon" />
                   <div className="flex flex-col min-w-0">
-                    <span className="text-[10px] text-gray-400 font-medium">Email ID</span>
-                    <span className="text-xs text-[#1A1A1A] profile-text-dark font-medium break-all select-all">
+                    <span className="text-[10px] text-gray-400 font-medium profile-detail-label">Email ID</span>
+                    <span className="text-xs text-[#1A1A1A] profile-text-dark profile-detail-value font-medium break-all select-all">
                       {user.email}
                     </span>
                   </div>
                 </div>
 
-                <div className="flex items-start gap-2 text-gray-600">
+                <div className="flex items-start gap-2 text-gray-600 profile-detail-row">
                   {user.role === 'Superadmin' ? (
                     <ShieldCheck className="w-3.5 h-3.5 mt-0.5 text-[#ED6C02] shrink-0" />
                   ) : (
                     <User className="w-3.5 h-3.5 mt-0.5 text-blue-500 shrink-0" />
                   )}
                   <div className="flex flex-col">
-                    <span className="text-[10px] text-gray-400 font-medium">Role</span>
-                    <span className="text-xs text-[#1A1A1A] profile-text-dark font-medium">
+                    <span className="text-[10px] text-gray-400 font-medium profile-detail-label">Role</span>
+                    <span className="text-xs text-[#1A1A1A] profile-text-dark profile-detail-value font-medium">
                       {user.role}
                     </span>
                   </div>
@@ -174,16 +174,16 @@ export const Header: React.FC<HeaderProps> = ({
 
               {/* Sign out Action */}
               {onLogout && (
-                <div className="pt-2 border-t border-gray-100">
+                <div className="pt-2 border-t border-gray-100 profile-signout-container">
                   <button
                     onClick={() => {
                       setIsProfileOpen(false);
                       onLogout();
                     }}
-                    className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-amber-50/70 hover:text-red-700 active:bg-amber-100 rounded-lg transition-colors cursor-pointer"
+                    className="profile-signout-btn w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-amber-50/70 hover:text-red-700 active:bg-amber-100 rounded-lg transition-colors cursor-pointer"
                   >
-                    <LogOut className="w-3.5 h-3.5" />
-                    <span>Sign Out</span>
+                    <LogOut className="w-3.5 h-3.5 text-red-600" />
+                    <span className="text-red-600 font-semibold">Sign Out</span>
                   </button>
                 </div>
               )}
