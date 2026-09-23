@@ -73,7 +73,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         {toasts.map((t) => (
           <div
             key={t.id}
-            className={`pointer-events-auto rounded-md shadow-md border-l-4 border-y border-r border-[#333333] bg-[#1F1F1F] text-white px-3.5 py-2.5 flex items-start gap-2.5 text-xs transition-all duration-200 animate-in fade-in slide-in-from-top-2 ${
+            className={`pointer-events-auto rounded-lg shadow-lg border-l-4 border-y border-r border-gray-200 bg-white text-[#1A1A1A] px-3.5 py-2.5 flex items-start gap-2.5 text-xs transition-all duration-200 animate-in fade-in slide-in-from-top-2 ${
               t.type === 'gebol'
                 ? 'border-l-[#F8B800]'
                 : t.type === 'success'
@@ -88,15 +88,15 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             {/* Minimal Icon */}
             <div className="shrink-0 mt-0.5">
               {t.type === 'gebol' && <Sparkles className="w-4 h-4 text-[#F8B800]" />}
-              {t.type === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
-              {t.type === 'error' && <XCircle className="w-4 h-4 text-red-400" />}
-              {t.type === 'warning' && <AlertTriangle className="w-4 h-4 text-amber-400" />}
-              {t.type === 'info' && <Info className="w-4 h-4 text-blue-400" />}
+              {t.type === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-600" />}
+              {t.type === 'error' && <XCircle className="w-4 h-4 text-red-600" />}
+              {t.type === 'warning' && <AlertTriangle className="w-4 h-4 text-amber-600" />}
+              {t.type === 'info' && <Info className="w-4 h-4 text-blue-600" />}
             </div>
 
             {/* Wrapped Text Content */}
             <div className="flex-1 min-w-0">
-              <p className="font-medium text-xs text-white leading-snug break-words whitespace-normal">
+              <p className="font-semibold text-xs text-[#1A1A1A] leading-snug break-words whitespace-normal">
                 {t.text}
               </p>
             </div>
@@ -104,7 +104,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             {/* Dismiss Button */}
             <button
               onClick={() => removeToast(t.id)}
-              className="text-gray-400 hover:text-white transition-colors cursor-pointer p-0.5 rounded hover:bg-[#2A2A2A] shrink-0 mt-0.5"
+              className="text-gray-400 hover:text-gray-700 transition-colors cursor-pointer p-0.5 rounded hover:bg-gray-100 shrink-0 mt-0.5"
               title="Dismiss"
             >
               <X className="w-3.5 h-3.5" />

@@ -15,40 +15,35 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 const THEME_STORAGE_KEY = 'gebol_prototype_theme';
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [theme, setThemeState] = useState<PrototypeTheme>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem(THEME_STORAGE_KEY);
-      if (saved === 'A' || saved === 'B') {
-        return saved;
-      }
-    }
-    return 'A';
-  });
+  const [theme, setThemeState] = useState<PrototypeTheme>('A');
 
   const setTheme = (newTheme: PrototypeTheme) => {
-    setThemeState(newTheme);
+    setThemeState('A');
     if (typeof window !== 'undefined') {
-      localStorage.setItem(THEME_STORAGE_KEY, newTheme);
-      document.documentElement.setAttribute('data-theme', newTheme);
+      localStorage.setItem(THEME_STORAGE_KEY, 'A');
+      document.documentElement.setAttribute('data-theme', 'A');
     }
   };
 
   const toggleTheme = () => {
-    setTheme(theme === 'A' ? 'B' : 'A');
+    setTheme('A');
   };
 
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-  }, [theme]);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(THEME_STORAGE_KEY, 'A');
+      document.documentElement.setAttribute('data-theme', 'A');
+    }
+  }, []);
 
   return (
     <ThemeContext.Provider
       value={{
-        theme,
+        theme: 'A',
         setTheme,
         toggleTheme,
-        isThemeA: theme === 'A',
-        isThemeB: theme === 'B',
+        isThemeA: true,
+        isThemeB: false,
       }}
     >
       {children}

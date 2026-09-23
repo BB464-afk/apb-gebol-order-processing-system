@@ -13,6 +13,7 @@ import {
   Check,
   Upload,
   Download,
+  Filter,
   AlertCircle,
   AlertTriangle,
   FileSpreadsheet,
@@ -103,6 +104,16 @@ export const ArticleMasterView: React.FC = () => {
   const { isThemeB } = useTheme();
   const [articles, setArticles] = useState<ArticleMasterRecord[]>(INITIAL_ARTICLES_DATASET);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  
+  // Filter Modal state
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+  const [filterArtNr, setFilterArtNr] = useState('');
+  const [filterKeyword, setFilterKeyword] = useState('');
+  const [filterEanPrefix, setFilterEanPrefix] = useState('');
+  const [tempFilterArtNr, setTempFilterArtNr] = useState('');
+  const [tempFilterKeyword, setTempFilterKeyword] = useState('');
+  const [tempFilterEanPrefix, setTempFilterEanPrefix] = useState('');
   
   // Selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -131,18 +142,59 @@ export const ArticleMasterView: React.FC = () => {
   const [selectedFileName, setSelectedFileName] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Search Filter
+  // Search & Filter Articles
   const filteredArticles = useMemo(() => {
     const term = searchTerm.toLowerCase().trim();
-    if (!term) return articles;
+    const artTerm = filterArtNr.toLowerCase().trim();
+    const keyTerm = filterKeyword.toLowerCase().trim();
+    const eanTerm = filterEanPrefix.toLowerCase().trim();
+
     return articles.filter((a) => {
-      return (
+      const matchesSearch =
+        !term ||
         a.articleId.toLowerCase().includes(term) ||
         a.description.toLowerCase().includes(term) ||
-        a.ean.toLowerCase().includes(term)
-      );
+        a.ean.toLowerCase().includes(term);
+
+      const matchesArtNr = !artTerm || a.articleId.toLowerCase().includes(artTerm);
+      const matchesKeyword = !keyTerm || a.description.toLowerCase().includes(keyTerm);
+      const matchesEan = !eanTerm || a.ean.toLowerCase().includes(eanTerm);
+
+      return matchesSearch && matchesArtNr && matchesKeyword && matchesEan;
     });
-  }, [articles, searchTerm]);
+  }, [articles, searchTerm, filterArtNr, filterKeyword, filterEanPrefix]);
+
+  const activeFilterCount =
+    (filterArtNr ? 1 : 0) + (filterKeyword ? 1 : 0) + (filterEanPrefix ? 1 : 0);
+
+  const handleOpenFilterModal = () => {
+    setTempFilterArtNr(filterArtNr);
+    setTempFilterKeyword(filterKeyword);
+    setTempFilterEanPrefix(filterEanPrefix);
+    setIsFilterModalOpen(true);
+  };
+
+  const handleApplyFilters = () => {
+    setFilterArtNr(tempFilterArtNr);
+    setFilterKeyword(tempFilterKeyword);
+    setFilterEanPrefix(tempFilterEanPrefix);
+    setCurrentPage(1);
+    setIsFilterModalOpen(false);
+  };
+
+  const handleResetFilters = () => {
+    setTempFilterArtNr('');
+    setTempFilterKeyword('');
+    setTempFilterEanPrefix('');
+  };
+
+  const handleClearAllActiveFilters = () => {
+    setFilterArtNr('');
+    setFilterKeyword('');
+    setFilterEanPrefix('');
+    setSearchTerm('');
+    setCurrentPage(1);
+  };
 
   // Pagination Logic
   const totalPages = Math.ceil(filteredArticles.length / rowsPerPage) || 1;
@@ -552,9 +604,9 @@ export const ArticleMasterView: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 text-[#8f9494]">
+    <div className="space-y-3.5">
       {/* 🔹 HEADER WITH PRIMARY ACTIONS */}
-      <div className="flex flex-wrap items-center justify-between gap-4 py-1">
+      <div className="flex flex-wrap items-center justify-between gap-4 py-0.5">
         <div>
           <h1 className="text-[22px] font-bold text-[#4f4f4e] tracking-tight page-header-title">Article Master</h1>
           <p className="text-[15px] text-[#8f9494] mt-0.5 font-light">
@@ -562,8 +614,85 @@ export const ArticleMasterView: React.FC = () => {
           </p>
         </div>
 
-        {/* TOP RIGHT PRIMARY ACTIONS */}
-        <div className="flex items-center gap-2 flex-wrap">
+        {/* TOP RIGHT PRIMARY ACTIONS: Search, Filter, Import Icon, Export Icon, Add Article */}
+        <div className="flex items-center gap-2">
+          {/* Expandable Search Input */}
+          <div className="relative flex items-center">
+            {isSearchOpen || searchTerm ? (
+              <div className="relative flex items-center animate-in fade-in duration-150">
+                <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 pointer-events-none" />
+                <input
+                  type="text"
+                  autoFocus
+                  placeholder="Search articles..."
+                  value={searchTerm}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="w-48 sm:w-60 pl-8 pr-7 py-1.5 border border-[#E0E0E0] rounded text-xs bg-white text-[#262626] placeholder-gray-400 focus:outline-none focus:border-[#F8B800] transition-all shadow-2xs"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchTerm('');
+                    setIsSearchOpen(false);
+                    setCurrentPage(1);
+                  }}
+                  className="absolute right-2 text-gray-400 hover:text-gray-600 cursor-pointer p-0.5"
+                  title="Close search"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsSearchOpen(true)}
+                title="Search articles"
+                className={`p-2 rounded border transition-colors cursor-pointer shadow-2xs flex items-center justify-center ${
+                  isThemeB
+                    ? 'bg-[#262626] border-[#383838] text-white hover:bg-[#333333]'
+                    : 'bg-white border-[#E0E0E0] text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                <Search className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Filter Button */}
+          <button
+            type="button"
+            onClick={handleOpenFilterModal}
+            title="Filter Articles"
+            className={`p-2 rounded border transition-colors cursor-pointer shadow-2xs relative flex items-center justify-center ${
+              activeFilterCount > 0
+                ? isThemeB
+                  ? 'bg-[#262626] border-[#F8B800] text-white ring-1 ring-[#F8B800]/50'
+                  : 'bg-amber-50 border-[#F8B800] text-[#1A1A1A] ring-1 ring-[#F8B800]/40'
+                : isThemeB
+                ? 'bg-[#262626] border-[#383838] text-white hover:bg-[#333333]'
+                : 'bg-white border-[#E0E0E0] text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            <Filter
+              className={`w-4 h-4 ${
+                activeFilterCount > 0
+                  ? 'text-[#ED6C02]'
+                  : isThemeB
+                  ? 'text-white'
+                  : 'text-gray-600'
+              }`}
+            />
+            {activeFilterCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 min-w-4 h-4 px-1 bg-[#ED6C02] text-white text-[9px] font-bold rounded-full flex items-center justify-center border border-white shadow-xs">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
+
+          {/* Import Articles Icon Button */}
           <button
             onClick={() => {
               setSelectedFileName('GEBOL_Article_Master_Import.xlsx');
@@ -571,61 +700,118 @@ export const ArticleMasterView: React.FC = () => {
               setHasParsedImport(false);
               setIsImportModalOpen(true);
             }}
-            className="bg-white hover:bg-gray-50 border border-[#E0E0E0] text-[#262626] font-bold px-3.5 py-2 rounded text-xs flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
-            title="Import Articles from Excel or CSV file"
+            title="Import Articles"
+            className={`p-2 rounded border transition-colors cursor-pointer shadow-2xs flex items-center justify-center ${
+              isThemeB
+                ? 'bg-[#262626] border-[#383838] hover:bg-[#333333]'
+                : 'bg-white border-[#E0E0E0] hover:bg-gray-50'
+            }`}
           >
             <Download className="w-4 h-4 text-emerald-600" />
-            <span>Import Articles</span>
           </button>
 
+          {/* Export Articles Icon Button */}
           <button
             onClick={() => setIsExportModalOpen(true)}
-            className="bg-white hover:bg-gray-50 border border-[#E0E0E0] text-[#262626] font-bold px-3.5 py-2 rounded text-xs flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
-            title="Export Article Master data to CSV/Excel"
+            title="Export Articles"
+            className={`p-2 rounded border transition-colors cursor-pointer shadow-2xs flex items-center justify-center ${
+              isThemeB
+                ? 'bg-[#262626] border-[#383838] hover:bg-[#333333]'
+                : 'bg-white border-[#E0E0E0] hover:bg-gray-50'
+            }`}
           >
             <Upload className="w-4 h-4 text-blue-600" />
-            <span>Export Articles</span>
           </button>
 
+          {/* Add Article Button */}
           <button
             onClick={handleOpenAddModal}
-            className="bg-[#f7b611] hover:bg-[#e2a508] text-white font-semibold px-4 py-2 rounded text-xs flex items-center gap-2 cursor-pointer transition-colors shadow-xs"
+            className="bg-[#f7b611] hover:bg-[#e2a508] text-white font-semibold px-3.5 py-1.5 rounded text-xs flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs"
             title="Add a new article record"
           >
-            <Plus className="w-4 h-4 text-white" />
+            <Plus className="w-3.5 h-3.5 text-white" />
             <span className="text-white">Add Article</span>
           </button>
         </div>
       </div>
 
-      {/* 🔹 SEARCH BAR */}
-      <div className="bg-white p-4 rounded-none border border-[#E0E0E0] shadow-2xs">
-        <div className="relative">
-          <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
-          <input
-            type="text"
-            placeholder="Search by Art.Nr, Description, or EAN"
-            value={searchTerm}
-            onChange={(e) => {
-              setSearchTerm(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="w-full pl-9 pr-9 py-2 border border-[#E0E0E0] rounded-none text-xs bg-white text-[#262626] placeholder-gray-400 focus:outline-none focus:border-[#F8B800] transition-colors"
-          />
+      {/* Active Filter Chips Bar */}
+      {(filterArtNr || filterKeyword || filterEanPrefix || searchTerm) && (
+        <div className="flex items-center flex-wrap gap-1.5 py-1 text-xs">
+          <span className="text-gray-400 text-[11px] font-medium mr-1">Active filters:</span>
           {searchTerm && (
-            <button
-              type="button"
-              onClick={() => {
-                setSearchTerm('');
-                setCurrentPage(1);
-              }}
-              className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 text-xs cursor-pointer"
-            >
-              ✕
-            </button>
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-gray-100 border border-gray-300 text-gray-800 rounded-full text-[11px] font-medium">
+              Search: <strong>&quot;{searchTerm}&quot;</strong>
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchTerm('');
+                  setCurrentPage(1);
+                }}
+                className="hover:text-red-700 cursor-pointer ml-0.5 p-0.5"
+                title="Clear search"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
           )}
+          {filterArtNr && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-amber-50 border border-amber-200 text-amber-900 rounded-full text-[11px] font-medium">
+              Art.Nr: <strong>{filterArtNr}</strong>
+              <button
+                type="button"
+                onClick={() => {
+                  setFilterArtNr('');
+                  setCurrentPage(1);
+                }}
+                className="hover:text-red-700 cursor-pointer ml-0.5 p-0.5"
+                title="Remove Art.Nr filter"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
+          {filterKeyword && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-blue-50 border border-blue-200 text-blue-900 rounded-full text-[11px] font-medium">
+              Description: <strong>{filterKeyword}</strong>
+              <button
+                type="button"
+                onClick={() => {
+                  setFilterKeyword('');
+                  setCurrentPage(1);
+                }}
+                className="hover:text-red-700 cursor-pointer ml-0.5 p-0.5"
+                title="Remove keyword filter"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
+          {filterEanPrefix && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-purple-50 border border-purple-200 text-purple-900 rounded-full text-[11px] font-medium">
+              EAN: <strong>{filterEanPrefix}</strong>
+              <button
+                type="button"
+                onClick={() => {
+                  setFilterEanPrefix('');
+                  setCurrentPage(1);
+                }}
+                className="hover:text-red-700 cursor-pointer ml-0.5 p-0.5"
+                title="Remove EAN filter"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={handleClearAllActiveFilters}
+            className="text-xs text-gray-500 hover:text-[#1A1A1A] underline font-semibold cursor-pointer ml-2"
+          >
+            Clear all
+          </button>
         </div>
-      </div>
+      )}
 
       {/* 🔹 MAIN CONTENT TABLE */}
       <div className="bg-white rounded-none border border-[#E0E0E0] shadow-2xs overflow-hidden">
@@ -1240,6 +1426,111 @@ export const ArticleMasterView: React.FC = () => {
                 >
                   <Download className="w-4 h-4 text-white" />
                   <span className="text-white">Export</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* 🔹 FILTER POPUP MODAL */}
+      {isFilterModalOpen && (
+        <div
+          onClick={() => setIsFilterModalOpen(false)}
+          className={`fixed inset-0 z-50 ${
+            isThemeB ? 'bg-black/60 backdrop-blur-xs' : 'bg-black/25 backdrop-blur-[2px]'
+          } flex items-center justify-center p-4`}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="rounded-none border border-[#E0E0E0] shadow-2xl w-full max-w-lg bg-white text-gray-900 animate-in fade-in zoom-in-95 duration-150 overflow-hidden"
+          >
+            {/* Modal Header */}
+            <div
+              className={`px-5 py-3.5 flex items-center justify-between border-b ${
+                isThemeB
+                  ? 'bg-[#161922] text-white border-[#383838]'
+                  : 'bg-gray-50 text-gray-900 border-gray-200'
+              }`}
+            >
+              <h3 className="font-semibold text-[15px]">Filter Articles</h3>
+              <button
+                type="button"
+                onClick={() => setIsFilterModalOpen(false)}
+                className="cursor-pointer p-1 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-200"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-4 text-xs bg-white">
+              {/* 1. Article Number */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Article Number (Art.Nr.)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. 004649, 709217..."
+                  value={tempFilterArtNr}
+                  onChange={(e) => setTempFilterArtNr(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded text-xs bg-white text-gray-900 focus:outline-none focus:border-[#F8B800]"
+                />
+              </div>
+
+              {/* 2. Description / Keyword */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Product Description / Keyword
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Multi Flex, Eco Grip, Safety Shoe..."
+                  value={tempFilterKeyword}
+                  onChange={(e) => setTempFilterKeyword(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded text-xs bg-white text-gray-900 focus:outline-none focus:border-[#F8B800]"
+                />
+              </div>
+
+              {/* 3. EAN Barcode */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  EAN Barcode
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. 9002701..."
+                  value={tempFilterEanPrefix}
+                  onChange={(e) => setTempFilterEanPrefix(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded text-xs bg-white text-gray-900 focus:outline-none focus:border-[#F8B800]"
+                />
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-5 py-3.5 flex items-center justify-between border-t border-gray-200 bg-gray-50 text-gray-900">
+              <button
+                type="button"
+                onClick={handleResetFilters}
+                className="text-xs font-semibold text-red-600 hover:text-red-800 underline cursor-pointer"
+              >
+                Reset All
+              </button>
+
+              <div className="flex items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setIsFilterModalOpen(false)}
+                  className="px-3.5 py-1.5 text-xs font-medium rounded-none border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleApplyFilters}
+                  className="px-5 py-1.5 bg-[#f7b611] hover:bg-[#e2a508] text-black font-bold rounded-none text-xs cursor-pointer shadow-xs"
+                >
+                  Apply Filters
                 </button>
               </div>
             </div>

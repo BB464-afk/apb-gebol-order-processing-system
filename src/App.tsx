@@ -464,52 +464,47 @@ export default function App() {
 
         {/* 3. DYNAMIC MAIN CONTENT AREA */}
         <main className="flex-1 px-4 pt-2.5 pb-4 sm:px-5 sm:pt-3 sm:pb-5 md:px-6 md:pt-3.5 md:pb-6 space-y-3 w-full">
-          {activeNav === 'orders' && (
-            <div>
-              {processingSubView === 'queue' ? (
-                <POQueueTable
-                  orders={orders}
-                  onSelectPo={(po) => {
-                    setSelectedPoId(po.id);
-                    setProcessingSubView('detail');
-                  }}
-                  onNewIntake={() => setIsIntakeModalOpen(true)}
-                  onOpenXmlModal={handleOpenXmlForOrder}
-                  onDeletePo={handleDeletePo}
-                />
-              ) : (
-                <div className="space-y-3.5">
-                  {/* Breadcrumbs Navigation (Outside Box for Theme A) */}
-                  {!isThemeB && (
-                    <div className="flex items-center justify-between py-0.5 min-h-[36px]">
-                      <nav className="flex items-center space-x-1.5 text-[13px] text-gray-500 font-medium">
-                        <button
-                          onClick={() => setProcessingSubView('queue')}
-                          title="Return to Orders"
-                          className="hover:text-[#1A1A1A] hover:underline cursor-pointer transition-colors"
-                        >
-                          Orders
-                        </button>
-                        <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
-                        <span className="text-[#1A1A1A] font-bold">
-                          Order Details ({currentPo.sourceFileName || currentPo.id})
-                        </span>
-                      </nav>
-                    </div>
-                  )}
+          {activeNav === 'orders' && processingSubView === 'queue' && (
+            <POQueueTable
+              orders={orders}
+              onSelectPo={(po) => {
+                setSelectedPoId(po.id);
+                setProcessingSubView('detail');
+              }}
+              onNewIntake={() => setIsIntakeModalOpen(true)}
+              onOpenXmlModal={handleOpenXmlForOrder}
+            />
+          )}
 
-                  {/* Unified Order Detail & Review Workspace */}
-                  <OrderDetailReviewWorkspace
-                    po={currentPo}
-                    onUpdatePo={(updated) =>
-                      setOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)))
-                    }
-                    onOpenXmlModal={handleOpenXmlForOrder}
-                    onBack={() => setProcessingSubView('queue')}
-                    onNavigateToCustomerMaster={() => handleNavigate('customer-master')}
-                  />
-                </div>
-              )}
+          {activeNav === 'orders' && processingSubView === 'detail' && (
+            <div className="space-y-3.5">
+              {/* Breadcrumbs Navigation */}
+              <div className="flex items-center justify-between py-0.5 min-h-[36px]">
+                <nav className="flex items-center space-x-1.5 text-[13px] text-gray-500 font-medium">
+                  <button
+                    onClick={() => setProcessingSubView('queue')}
+                    title="Return to Orders"
+                    className="hover:text-[#1A1A1A] hover:underline cursor-pointer transition-colors"
+                  >
+                    Orders
+                  </button>
+                  <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
+                  <span className="text-[#1A1A1A] font-bold">
+                    Order Details ({currentPo.sourceFileName || currentPo.id})
+                  </span>
+                </nav>
+              </div>
+
+              {/* Unified Order Detail & Review Workspace */}
+              <OrderDetailReviewWorkspace
+                po={currentPo}
+                onUpdatePo={(updated) =>
+                  setOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)))
+                }
+                onOpenXmlModal={handleOpenXmlForOrder}
+                onBack={() => setProcessingSubView('queue')}
+                onNavigateToCustomerMaster={() => handleNavigate('customer-master')}
+              />
             </div>
           )}
 

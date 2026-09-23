@@ -1,16 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import {
   Bell,
-  Trash2,
+  Eraser,
   X,
-  AlertOctagon,
-  UserCheck,
-  Database,
-  FileCode,
   ExternalLink,
   Filter,
   CheckCircle2,
-  Info,
 } from 'lucide-react';
 import { useNotifications } from '../context/NotificationContext';
 import { useTheme } from '../context/ThemeContext';
@@ -25,6 +20,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ onNaviga
     notifications,
     unreadCount,
     markAsRead,
+    dismissNotification,
     clearAll,
   } = useNotifications();
   const { isThemeB } = useTheme();
@@ -57,21 +53,6 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ onNaviga
     if (activeFilter === 'all') return true;
     return n.scenario === activeFilter;
   });
-
-  const getScenarioIcon = (scenario: NotificationScenario) => {
-    switch (scenario) {
-      case 'processing_failure':
-        return <AlertOctagon className="w-5 h-5 text-red-600 shrink-0" />;
-      case 'manual_review_required':
-        return <UserCheck className="w-5 h-5 text-amber-600 shrink-0" />;
-      case 'master_data_upload':
-        return <Database className="w-5 h-5 text-emerald-600 shrink-0" />;
-      case 'xml_generation_failure':
-        return <FileCode className="w-5 h-5 text-rose-600 shrink-0" />;
-      default:
-        return <Info className="w-5 h-5 text-blue-600 shrink-0" />;
-    }
-  };
 
   const handleActionClick = (notification: AppNotification) => {
     markAsRead(notification.id);
@@ -171,7 +152,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ onNaviga
                       title="Clear all notifications"
                       className="p-1.5 rounded-lg text-gray-500 hover:text-[#ED6C02] hover:bg-gray-200 transition-colors cursor-pointer notification-action-btn"
                     >
-                      <Trash2 className="w-4 h-4 text-gray-500 hover:text-[#ED6C02]" />
+                      <Eraser className="w-4 h-4 text-gray-500 hover:text-[#ED6C02]" />
                     </button>
                   )}
                   <button
@@ -237,54 +218,58 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ onNaviga
                             : 'bg-amber-50/30 hover:bg-amber-50/50'
                         }`}
                       >
-                        <div className="flex items-start gap-3">
-                          {/* Icon - only icon without background container */}
-                          <div className="shrink-0 mt-0.5 notification-scenario-icon">
-                            {getScenarioIcon(notification.scenario)}
-                          </div>
-
-                          {/* Content Area */}
-                          <div className="flex-1 min-w-0">
-                            {/* Meta row */}
-                            <div className="flex items-center justify-between gap-2 mb-1">
-                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded border notification-badge ${meta.badgeClass}`}>
-                                {meta.label}
-                              </span>
-                              <div className="flex items-center gap-2 text-[10px] text-gray-500 notification-timestamp">
-                                <span>{notification.timestamp}</span>
-                                {!notification.isRead && (
-                                  <span className="w-2 h-2 rounded-full bg-[#ED6C02]" title="Unread" />
-                                )}
-                              </div>
+                        {/* Content Area - No scenario icon in front */}
+                        <div className="w-full">
+                          {/* Meta row */}
+                          <div className="flex items-center justify-between gap-2 mb-1.5">
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded border notification-badge ${meta.badgeClass}`}>
+                              {meta.label}
+                            </span>
+                            <div className="flex items-center gap-2 text-[10px] text-gray-500 notification-timestamp">
+                              <span>{notification.timestamp}</span>
+                              {!notification.isRead && (
+                                <span className="w-2 h-2 rounded-full bg-[#ED6C02]" title="Unread" />
+                              )}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  dismissNotification(notification.id);
+                                }}
+                                title="Dismiss notification"
+                                className="text-gray-400 hover:text-gray-700 p-0.5 rounded transition-colors cursor-pointer"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
                             </div>
-
-                            {/* Title */}
-                            <h3
-                              className={`text-xs notification-title ${
-                                notification.isRead ? 'font-semibold text-gray-800' : 'font-bold text-[#1A1A1A]'
-                              } leading-snug`}
-                            >
-                              {notification.title}
-                            </h3>
-
-                            {/* Message */}
-                            <p className="text-xs text-gray-600 mt-1 leading-relaxed notification-desc">
-                              {notification.message}
-                            </p>
-
-                            {/* Action Buttons Row */}
-                            {notification.actionLabel && (
-                              <div className="mt-3 flex items-center justify-end pt-2.5 border-t border-gray-100">
-                                <button
-                                  onClick={() => handleActionClick(notification)}
-                                  className="notification-action-button bg-[#f7b611] hover:bg-[#e2a508] text-gray-900 font-semibold px-3.5 py-1.5 rounded-lg text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
-                                >
-                                  <span className="text-gray-900 font-semibold">{notification.actionLabel}</span>
-                                  <ExternalLink className="w-3.5 h-3.5 text-gray-900" />
-                                </button>
-                              </div>
-                            )}
                           </div>
+
+                          {/* Title */}
+                          <h3
+                            className={`text-xs notification-title ${
+                              notification.isRead ? 'font-semibold text-gray-800' : 'font-bold text-[#1A1A1A]'
+                            } leading-snug`}
+                          >
+                            {notification.title}
+                          </h3>
+
+                          {/* Message */}
+                          <p className="text-xs text-gray-600 mt-1 leading-relaxed notification-desc">
+                            {notification.message}
+                          </p>
+
+                          {/* Action Buttons Row - No line in between */}
+                          {notification.actionLabel && (
+                            <div className="mt-2.5 flex items-center justify-end">
+                              <button
+                                onClick={() => handleActionClick(notification)}
+                                className="notification-action-button bg-[#f7b611] hover:bg-[#e2a508] text-gray-900 font-semibold px-3.5 py-1.5 rounded-lg text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                              >
+                                <span className="text-gray-900 font-semibold">{notification.actionLabel}</span>
+                                <ExternalLink className="w-3.5 h-3.5 text-gray-900" />
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </div>
                     );

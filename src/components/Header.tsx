@@ -2,7 +2,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Upload, LogOut, ShieldCheck, Mail, User } from 'lucide-react';
 import { getUserProfile, UserRole } from '../types/user';
 import { NotificationCenter } from './NotificationCenter';
-import { ABThemeToggle } from './ABThemeToggle';
 import { useTheme } from '../context/ThemeContext';
 
 interface HeaderProps {
@@ -22,6 +21,8 @@ export const Header: React.FC<HeaderProps> = ({
   onNewIntake,
   activeNavTitle = 'Order Details',
   activeNav,
+  isSidebarCollapsed = false,
+  onToggleSidebar,
   userEmail = 'Lucas.Platzer@gebol.at',
   userRole,
   isNormalUser = false,
@@ -53,34 +54,33 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header
-      className={`${
-        isNormalUser ? 'h-14' : 'h-12'
-      } px-4 sm:px-6 flex items-center justify-between sticky top-0 z-20 transition-all border-b select-none ${
+      className={`h-14 min-h-[56px] max-h-[56px] shrink-0 px-4 sm:px-6 flex items-center justify-between sticky top-0 z-20 transition-all border-b select-none ${
         isThemeB
           ? 'bg-[#161922] border-[#262A36] text-white'
           : 'bg-[#F9FAFB] border-gray-200 text-[#4f4f4e]'
       }`}
     >
-      {/* Left side: Logo for Normal User (or Active Module Title) */}
+      {/* Left side: Show Gebol logo ONLY when sidebar is collapsed (or for normal users) */}
       <div className="flex items-center space-x-3">
-        {isNormalUser ? (
-          <div className="flex items-center py-1">
+        {(isSidebarCollapsed || isNormalUser) && (
+          <div className="flex items-center py-1 animate-in fade-in duration-150">
             {isThemeB ? (
               <img
                 src="/B%20Logo.png"
                 alt="GEBOL"
-                className="h-7 sm:h-8 w-auto object-contain"
+                className="h-7 w-auto max-w-[155px] object-contain"
               />
             ) : (
               <img
                 src="/expanded.png"
                 alt="GEBOL"
-                className="h-5 sm:h-6 w-auto object-contain transition-all"
+                className="h-7 w-auto max-w-[155px] object-contain transition-all"
               />
             )}
           </div>
-        ) : (
-          activeNavTitle &&
+        )}
+
+        {activeNavTitle &&
           activeNav !== 'processing' &&
           activeNav !== 'orders' &&
           activeNav !== 'customer-master' &&
@@ -95,15 +95,11 @@ export const Header: React.FC<HeaderProps> = ({
             >
               {activeNavTitle}
             </h1>
-          )
-        )}
+          )}
       </div>
 
-      {/* Right side: Action Button, Theme Toggle & Profile Menu */}
+      {/* Right side: Notification Center & Profile Menu */}
       <div className="flex items-center space-x-2.5">
-        {/* Prototype A/B Theme Toggle */}
-        <ABThemeToggle />
-
         {/* Notification Center */}
         <NotificationCenter onNavigateToEntity={onNavigateToEntity} />
 
@@ -158,32 +154,32 @@ export const Header: React.FC<HeaderProps> = ({
                 </div>
 
                 <div className="flex items-start gap-2 text-gray-600 profile-detail-row">
-                  {user.role === 'Superadmin' ? (
-                    <ShieldCheck className="w-3.5 h-3.5 mt-0.5 text-[#ED6C02] shrink-0" />
-                  ) : (
-                    <User className="w-3.5 h-3.5 mt-0.5 text-blue-500 shrink-0" />
-                  )}
-                  <div className="flex flex-col">
+                  <ShieldCheck className="w-3.5 h-3.5 mt-0.5 text-gray-400 shrink-0 profile-detail-icon" />
+                  <div className="flex flex-col min-w-0">
                     <span className="text-[10px] text-gray-400 font-medium profile-detail-label">Role</span>
-                    <span className="text-xs text-[#1A1A1A] profile-text-dark profile-detail-value font-medium">
-                      {user.role}
-                    </span>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
+                      <span className="text-xs font-semibold text-[#1A1A1A] profile-text-dark profile-role-badge">
+                        {user.role}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* Sign out Action */}
+              {/* Logout Button */}
               {onLogout && (
-                <div className="pt-2 border-t border-gray-100 profile-signout-container">
+                <div className="pt-2 border-t border-gray-100 profile-dropdown-footer">
                   <button
+                    type="button"
                     onClick={() => {
                       setIsProfileOpen(false);
                       onLogout();
                     }}
-                    className="profile-signout-btn w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-amber-50/70 hover:text-red-700 active:bg-amber-100 rounded-lg transition-colors cursor-pointer"
+                    className="w-full flex items-center justify-center gap-2 py-2 px-3 text-xs font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors cursor-pointer profile-logout-btn"
                   >
-                    <LogOut className="w-3.5 h-3.5 text-red-600" />
-                    <span className="text-red-600 font-semibold">Sign Out</span>
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Log Out</span>
                   </button>
                 </div>
               )}
@@ -194,4 +190,3 @@ export const Header: React.FC<HeaderProps> = ({
     </header>
   );
 };
-

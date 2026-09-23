@@ -123,6 +123,7 @@ export const CustomerMasterView: React.FC = () => {
   const { isThemeB } = useTheme();
   const [customers, setCustomers] = useState<CustomerMasterRecord[]>(INITIAL_CUSTOMERS);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [selectedCountries, setSelectedCountries] = useState<string[]>([]);
   const [selectedCities, setSelectedCities] = useState<string[]>([]);
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
@@ -705,9 +706,9 @@ export const CustomerMasterView: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3.5">
       {/* 🔹 HEADER WITH TITLE & TOP-RIGHT ACTIONS */}
-      <div className="flex flex-wrap items-center justify-between gap-4 py-1">
+      <div className="flex flex-wrap items-center justify-between gap-4 py-0.5">
         <div>
           <h1 className="text-[22px] font-bold text-[#4f4f4e] tracking-tight page-header-title">Customer Master</h1>
           <p className="text-[15px] text-[#8f9494] mt-0.5 font-light">
@@ -715,142 +716,191 @@ export const CustomerMasterView: React.FC = () => {
           </p>
         </div>
 
-        {/* Top right actions */}
-        <div className="flex items-center gap-2.5">
+        {/* Top right actions: Search, Filter, Import Icon, Export Icon, Add Customer */}
+        <div className="flex items-center gap-2">
+          {/* Expandable Search Input */}
+          <div className="relative flex items-center">
+            {isSearchOpen || searchTerm ? (
+              <div className="relative flex items-center animate-in fade-in duration-150">
+                <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 pointer-events-none" />
+                <input
+                  type="text"
+                  autoFocus
+                  placeholder="Search customers..."
+                  value={searchTerm}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="w-48 sm:w-60 pl-8 pr-7 py-1.5 border border-[#E0E0E0] rounded text-xs bg-white text-[#1A1A1A] placeholder-gray-400 focus:outline-none focus:border-[#F8B800] transition-all shadow-2xs"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchTerm('');
+                    setIsSearchOpen(false);
+                    setCurrentPage(1);
+                  }}
+                  className="absolute right-2 text-gray-400 hover:text-gray-600 cursor-pointer p-0.5"
+                  title="Close search"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsSearchOpen(true)}
+                title="Search customers"
+                className={`p-2 rounded border transition-colors cursor-pointer shadow-2xs flex items-center justify-center ${
+                  isThemeB
+                    ? 'bg-[#262626] border-[#383838] text-white hover:bg-[#333333]'
+                    : 'bg-white border-[#E0E0E0] text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                <Search className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Filter Button */}
+          <button
+            type="button"
+            onClick={handleOpenFilterModal}
+            title="Filter by City and Country"
+            className={`p-2 rounded border transition-colors cursor-pointer shadow-2xs relative flex items-center justify-center ${
+              activeFilterCount > 0
+                ? isThemeB
+                  ? 'bg-[#262626] border-[#F8B800] text-white ring-1 ring-[#F8B800]/50'
+                  : 'bg-amber-50 border-[#F8B800] text-[#1A1A1A] ring-1 ring-[#F8B800]/40'
+                : isThemeB
+                ? 'bg-[#262626] border-[#383838] text-white hover:bg-[#333333]'
+                : 'bg-white border-[#E0E0E0] text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            <Filter
+              className={`w-4 h-4 ${
+                activeFilterCount > 0
+                  ? 'text-[#ED6C02]'
+                  : isThemeB
+                  ? 'text-white'
+                  : 'text-gray-600'
+              }`}
+            />
+            {activeFilterCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 min-w-4 h-4 px-1 bg-[#ED6C02] text-white text-[9px] font-bold rounded-full flex items-center justify-center border border-white shadow-xs">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
+
+          {/* Import Customers Icon Button */}
           <button
             onClick={() => {
               processRows(DEFAULT_CUSTOMER_IMPORT_ROWS, 'GEBOL_Customer_Master_Import.xlsx');
               setIsImportModalOpen(true);
             }}
-            className="bg-white hover:bg-gray-50 text-[#262626] font-bold px-3.5 py-2 rounded text-xs flex items-center gap-2 border border-[#E0E0E0] shadow-2xs transition-colors cursor-pointer"
+            title="Import Customers"
+            className={`p-2 rounded border transition-colors cursor-pointer shadow-2xs flex items-center justify-center ${
+              isThemeB
+                ? 'bg-[#262626] border-[#383838] hover:bg-[#333333]'
+                : 'bg-white border-[#E0E0E0] hover:bg-gray-50'
+            }`}
           >
             <Download className="w-4 h-4 text-emerald-600" />
-            <span>Import Customers</span>
           </button>
 
+          {/* Export Customers Icon Button */}
           <button
             onClick={() => setIsExportModalOpen(true)}
-            className="bg-white hover:bg-gray-50 text-[#262626] font-bold px-3.5 py-2 rounded text-xs flex items-center gap-2 border border-[#E0E0E0] shadow-2xs transition-colors cursor-pointer"
+            title="Export Customers"
+            className={`p-2 rounded border transition-colors cursor-pointer shadow-2xs flex items-center justify-center ${
+              isThemeB
+                ? 'bg-[#262626] border-[#383838] hover:bg-[#333333]'
+                : 'bg-white border-[#E0E0E0] hover:bg-gray-50'
+            }`}
           >
             <Upload className="w-4 h-4 text-blue-600" />
-            <span>Export Customers</span>
           </button>
 
+          {/* Add Customer Button */}
           <button
             onClick={handleOpenAddModal}
-            className="bg-[#f7b611] hover:bg-[#e2a508] text-white font-semibold px-4 py-2 rounded text-xs flex items-center gap-2 shadow-xs cursor-pointer transition-colors"
+            className="bg-[#f7b611] hover:bg-[#e2a508] text-white font-semibold px-3.5 py-1.5 rounded text-xs flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors"
           >
-            <Plus className="w-4 h-4 text-white" />
+            <Plus className="w-3.5 h-3.5 text-white" />
             <span className="text-white">Add Customer</span>
           </button>
         </div>
       </div>
 
-      {/* 🔹 EXTENDED SEARCH BAR & FILTER BUTTON BESIDE IT */}
-      <div className="bg-white p-4 rounded-none border border-[#E0E0E0] shadow-2xs space-y-2.5">
-        <div className="flex items-center gap-2">
-          {/* Extended Search Bar */}
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
-            <input
-              type="text"
-              placeholder="Search by Customer Name, GLN, Customer ID (GPNr), City, Country, Address..."
-              value={searchTerm}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="w-full pl-9 pr-9 py-2 border border-[#E0E0E0] rounded-none text-xs bg-white text-[#1A1A1A] placeholder-gray-400 focus:outline-none focus:border-[#F8B800] transition-colors"
-            />
-            {searchTerm && (
+      {/* Active Filter Chips Bar */}
+      {(selectedCountries.length > 0 || selectedCities.length > 0 || searchTerm) && (
+        <div className="flex items-center flex-wrap gap-1.5 py-1 text-xs">
+          <span className="text-gray-400 text-[11px] font-medium mr-1">Active filters:</span>
+          {searchTerm && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-gray-100 border border-gray-300 text-gray-800 rounded-full text-[11px] font-medium">
+              Search: <strong>&quot;{searchTerm}&quot;</strong>
               <button
                 type="button"
                 onClick={() => {
                   setSearchTerm('');
                   setCurrentPage(1);
                 }}
-                className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 cursor-pointer text-xs"
+                className="hover:text-red-700 cursor-pointer ml-0.5 p-0.5"
+                title="Clear search"
               >
-                ✕
+                <X className="w-3 h-3" />
               </button>
-            )}
-          </div>
-
-          {/* Filter Button right beside search bar */}
+            </span>
+          )}
+          {selectedCountries.map((ct) => (
+            <span
+              key={ct}
+              className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-amber-50 border border-amber-200 text-amber-900 rounded-full text-[11px] font-medium"
+            >
+              Country: <strong>{ct}</strong>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedCountries((prev) => prev.filter((c) => c !== ct));
+                  setCurrentPage(1);
+                }}
+                className="hover:text-red-700 cursor-pointer ml-0.5 p-0.5"
+                title="Remove country filter"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          ))}
+          {selectedCities.map((city) => (
+            <span
+              key={city}
+              className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-blue-50 border border-blue-200 text-blue-900 rounded-full text-[11px] font-medium"
+            >
+              City: <strong>{city}</strong>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedCities((prev) => prev.filter((c) => c !== city));
+                  setCurrentPage(1);
+                }}
+                className="hover:text-red-700 cursor-pointer ml-0.5 p-0.5"
+                title="Remove city filter"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          ))}
           <button
             type="button"
-            onClick={handleOpenFilterModal}
-            className={`flex items-center gap-2 px-3.5 py-2 border text-xs font-semibold rounded-none cursor-pointer transition-colors shadow-2xs ${
-              activeFilterCount > 0
-                ? 'bg-amber-50 border-[#F8B800] text-[#1A1A1A]'
-                : isThemeB
-                ? 'bg-[#262626] border-[#383838] text-white hover:bg-[#333333]'
-                : 'bg-white border-[#E0E0E0] text-gray-700 hover:bg-gray-50'
-            }`}
-            title="Filter by City and Country"
+            onClick={handleClearAllActiveFilters}
+            className="text-xs text-gray-500 hover:text-[#1A1A1A] underline font-semibold cursor-pointer ml-2"
           >
-            <Filter className={`w-3.5 h-3.5 ${activeFilterCount > 0 ? 'text-[#ED6C02]' : 'text-gray-500'}`} />
-            <span>Filter</span>
-            {activeFilterCount > 0 && (
-              <span className="w-5 h-5 rounded-full bg-[#f7b611] text-black font-bold text-[10px] flex items-center justify-center">
-                {activeFilterCount}
-              </span>
-            )}
+            Clear all
           </button>
         </div>
-
-        {/* Active Filter Chips */}
-        {(selectedCountries.length > 0 || selectedCities.length > 0 || searchTerm) && (
-          <div className="flex items-center flex-wrap gap-1.5 pt-0.5 text-xs">
-            <span className="text-gray-400 text-[11px] font-medium mr-1">Active filters:</span>
-            {selectedCountries.map((ct) => (
-              <span
-                key={ct}
-                className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-amber-50 border border-amber-200 text-amber-900 rounded-full text-[11px] font-medium"
-              >
-                Country: <strong>{ct}</strong>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedCountries((prev) => prev.filter((c) => c !== ct));
-                    setCurrentPage(1);
-                  }}
-                  className="hover:text-red-700 cursor-pointer ml-0.5 p-0.5"
-                  title="Remove country filter"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </span>
-            ))}
-            {selectedCities.map((city) => (
-              <span
-                key={city}
-                className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-blue-50 border border-blue-200 text-blue-900 rounded-full text-[11px] font-medium"
-              >
-                City: <strong>{city}</strong>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedCities((prev) => prev.filter((c) => c !== city));
-                    setCurrentPage(1);
-                  }}
-                  className="hover:text-red-700 cursor-pointer ml-0.5 p-0.5"
-                  title="Remove city filter"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </span>
-            ))}
-            <button
-              type="button"
-              onClick={handleClearAllActiveFilters}
-              className="text-xs text-gray-500 hover:text-[#1A1A1A] underline font-semibold cursor-pointer ml-2"
-            >
-              Clear all
-            </button>
-          </div>
-        )}
-      </div>
+      )}
 
       {/* 🔹 MAIN READ-ONLY TABLE LISTING */}
       <div className="bg-white rounded-none border border-[#E0E0E0] shadow-2xs overflow-hidden">
