@@ -2,6 +2,7 @@ import React, { useState, useMemo, useRef } from 'react';
 import { useToast } from '../context/ToastContext';
 import { useNotifications } from '../context/NotificationContext';
 import { useTheme } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
 import * as XLSX from 'xlsx';
 import {
   Package,
@@ -102,6 +103,8 @@ export const ArticleMasterView: React.FC = () => {
   const toast = useToast();
   const { addNotification } = useNotifications();
   const { isThemeB } = useTheme();
+  const { language, dict } = useLanguage();
+  const isDe = language === 'de';
   const [articles, setArticles] = useState<ArticleMasterRecord[]>(INITIAL_ARTICLES_DATASET);
   const [searchTerm, setSearchTerm] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -608,13 +611,13 @@ export const ArticleMasterView: React.FC = () => {
       {/* 🔹 HEADER WITH PRIMARY ACTIONS */}
       <div className="flex flex-wrap items-center justify-between gap-4 py-0.5">
         <div>
-          <h1 className="text-[22px] font-bold text-[#4f4f4e] tracking-tight page-header-title">Article Master</h1>
+          <h1 className="text-[22px] font-bold text-[#4f4f4e] tracking-tight page-header-title">{dict.articleMaster.title}</h1>
           <p className="text-[15px] text-[#8f9494] mt-0.5 font-light">
-            Manage article master data used for purchase order processing and item identification.
+            {dict.articleMaster.subtitle}
           </p>
         </div>
 
-        {/* TOP RIGHT PRIMARY ACTIONS: Search, Filter, Import Icon, Export Icon, Add Article */}
+        {/* TOP RIGHT PRIMARY ACTIONS: Search, Filter, Import Icon, Export Icon */}
         <div className="flex items-center gap-2">
           {/* Expandable Search Input */}
           <div className="relative flex items-center">
@@ -624,7 +627,7 @@ export const ArticleMasterView: React.FC = () => {
                 <input
                   type="text"
                   autoFocus
-                  placeholder="Search articles..."
+                  placeholder={dict.articleMaster.searchPlaceholder}
                   value={searchTerm}
                   onChange={(e) => {
                     setSearchTerm(e.target.value);
@@ -722,16 +725,6 @@ export const ArticleMasterView: React.FC = () => {
           >
             <Upload className="w-4 h-4 text-blue-600" />
           </button>
-
-          {/* Add Article Button */}
-          <button
-            onClick={handleOpenAddModal}
-            className="bg-[#f7b611] hover:bg-[#e2a508] text-white font-semibold px-3.5 py-1.5 rounded text-xs flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs"
-            title="Add a new article record"
-          >
-            <Plus className="w-3.5 h-3.5 text-white" />
-            <span className="text-white">Add Article</span>
-          </button>
         </div>
       </div>
 
@@ -825,9 +818,9 @@ export const ArticleMasterView: React.FC = () => {
                     : 'bg-gray-100/90 text-gray-700 border-gray-200 text-xs'
                 } font-bold border-b`}
               >
-                <th className={`${isThemeB ? 'py-1.5 px-3' : 'py-2 px-3'} w-44 font-bold`}>Art.Nr.</th>
-                <th className={`${isThemeB ? 'py-1.5 px-3' : 'py-2 px-3'} font-bold`}>Description</th>
-                <th className={`${isThemeB ? 'py-1.5 px-3' : 'py-2 px-3'} w-48 font-bold`}>EAN</th>
+                <th className={`${isThemeB ? 'py-1.5 px-3' : 'py-2 px-3'} w-44 font-bold`}>{isDe ? 'GEBOL-Art.-Nr.' : 'Art.Nr.'}</th>
+                <th className={`${isThemeB ? 'py-1.5 px-3' : 'py-2 px-3'} font-bold`}>{isDe ? 'Bezeichnung' : 'Description'}</th>
+                <th className={`${isThemeB ? 'py-1.5 px-3' : 'py-2 px-3'} w-48 font-bold`}>{isDe ? 'EAN / Barcode' : 'EAN'}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E0E0E0] text-xs">

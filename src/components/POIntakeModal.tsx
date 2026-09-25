@@ -4,6 +4,7 @@ import { PurchaseOrderRecord } from '../types/po';
 import { useToast } from '../context/ToastContext';
 import { useNotifications } from '../context/NotificationContext';
 import { useTheme } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
 
 interface POIntakeModalProps {
   isOpen: boolean;
@@ -11,6 +12,8 @@ interface POIntakeModalProps {
   onOrderAdded: (newOrder: PurchaseOrderRecord) => void;
   onOrdersAdded?: (newOrders: PurchaseOrderRecord[]) => void;
 }
+
+const MAX_UPLOAD_FILES = 10;
 
 export const POIntakeModal: React.FC<POIntakeModalProps> = ({
   isOpen,
@@ -20,6 +23,9 @@ export const POIntakeModal: React.FC<POIntakeModalProps> = ({
 }) => {
   const toast = useToast();
   const { addNotification } = useNotifications();
+  const { language, dict } = useLanguage();
+  const isDe = language === 'de';
+
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -47,17 +53,23 @@ export const POIntakeModal: React.FC<POIntakeModalProps> = ({
     // 1. Format check
     const supportedExts = ['.pdf', '.xls', '.xlsx', '.xml'];
     if (!supportedExts.includes(ext)) {
-      return `Unsupported format: "${file.name}" is not supported. Please upload PDF, Excel (.xls, .xlsx), or XML files.`;
+      return isDe
+        ? `Nicht unterstütztes Format: "${file.name}" wird nicht unterstützt. Bitte laden Sie PDF-, Excel- (.xls, .xlsx) oder XML-Dateien hoch.`
+        : `Unsupported format: "${file.name}" is not supported. Please upload PDF, Excel (.xls, .xlsx), or XML files.`;
     }
 
     // 2. Corrupted file check
     if (file.size === 0 || fileName.includes('corrupt')) {
-      return `Corrupted file: "${file.name}" appears to be corrupted or unreadable.`;
+      return isDe
+        ? `Beschädigte Datei: "${file.name}" scheint beschädigt oder nicht lesbar zu sein.`
+        : `Corrupted file: "${file.name}" appears to be corrupted or unreadable.`;
     }
 
     // 3. Password-protected file check
     if (fileName.includes('protected') || fileName.includes('password') || fileName.includes('encrypted')) {
-      return `Password-protected file: "${file.name}" is encrypted. Please remove password protection before uploading.`;
+      return isDe
+        ? `Passwortgeschützte Datei: "${file.name}" ist verschlüsselt. Bitte entfernen Sie den Kennwortschutz.`
+        : `Password-protected file: "${file.name}" is encrypted. Please remove password protection before uploading.`;
     }
 
     return null;
@@ -67,6 +79,16 @@ export const POIntakeModal: React.FC<POIntakeModalProps> = ({
     setErrorMessage('');
     const newFiles: File[] = [];
 
+    // Check 10-file limit
+    if (selectedFiles.length + files.length > MAX_UPLOAD_FILES) {
+      setErrorMessage(
+        isDe
+          ? `Es können maximal ${MAX_UPLOAD_FILES} Dateien gleichzeitig hochgeladen werden. Bitte reduzieren Sie Ihre Auswahl.`
+          : `Maximum ${MAX_UPLOAD_FILES} files can be uploaded at once. Please select up to ${MAX_UPLOAD_FILES} files.`
+      );
+      return;
+    }
+
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       const error = validateFile(file);
@@ -75,11 +97,14 @@ export const POIntakeModal: React.FC<POIntakeModalProps> = ({
         addNotification({
           scenario: 'processing_failure',
           title: 'Order document processing failed',
+          titleDe: 'Auftragsverarbeitung fehlgeschlagen',
           message: `We were unable to process the uploaded order document (${file.name}). Please check the document format and retry processing.`,
+          messageDe: `Das hochgeladene Bestelldokument (${file.name}) konnte nicht verarbeitet werden. Bitte prüfen Sie das Dateiformat.`,
           severity: 'error',
           relatedEntityId: file.name,
           relatedEntityType: 'intake',
           actionLabel: 'Retry Processing',
+          actionLabelDe: 'Verarbeitung wiederholen',
           actionNav: 'orders',
         });
         return;
@@ -112,7 +137,12 @@ export const POIntakeModal: React.FC<POIntakeModalProps> = ({
 
   const handleUploadSubmit = () => {
     if (selectedFiles.length === 0) {
-      setErrorMessage('Please select or drop at least one purchase order document to upload.');
+      setErrorMessage(dict.uploadModal.emptySelectionError);
+      return;
+    }
+
+    if (selectedFiles.length > MAX_UPLOAD_FILES) {
+      setErrorMessage(dict.uploadModal.maxFilesError);
       return;
     }
 
@@ -125,7 +155,7 @@ export const POIntakeModal: React.FC<POIntakeModalProps> = ({
         const uniqueId = `PO-2026-${Math.floor(10000 + Math.random() * 90000)}`;
         const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 16);
         const fname = file.name;
-        
+
         let sType: 'PDF' | 'Email' | 'EDI' | 'Scan' = 'PDF';
         if (fname.endsWith('.xml')) sType = 'EDI';
 
@@ -285,28 +315,11 @@ export const POIntakeModal: React.FC<POIntakeModalProps> = ({
         createdOrders.forEach((o) => onOrderAdded(o));
       }
 
-      // Trigger scenario notifications based on ingested orders
-      createdOrders.forEach((o) => {
-        if (o.extractionConfidence < 95) {
-          addNotification({
-            scenario: 'manual_review_required',
-            title: `Manual review required: ${o.id}`,
-            message: `2 of the line items could not be mapped to existing articles. Manual review is required before releasing this order.`,
-            severity: 'warning',
-            relatedEntityId: o.id,
-            relatedEntityType: 'order',
-            actionLabel: 'Review',
-            actionNav: 'orders',
-            actionPoId: o.id,
-          });
-        }
-      });
-
       setIsUploading(false);
       onClose();
       toast.success(
-        'Upload Successful',
-        `${selectedFiles.length} purchase order(s) added for processing.`
+        dict.uploadModal.successToastTitle,
+        `${selectedFiles.length} ${dict.uploadModal.successToastMsg}`
       );
     }, 600);
   };
@@ -335,7 +348,7 @@ export const POIntakeModal: React.FC<POIntakeModalProps> = ({
                 isThemeB ? 'text-white' : 'text-gray-900'
               }`}
             >
-              Upload Order
+              {dict.uploadModal.title}
             </h3>
           </div>
           <button
@@ -353,10 +366,10 @@ export const POIntakeModal: React.FC<POIntakeModalProps> = ({
 
         {/* Content Body */}
         <div className="p-6 space-y-4">
-          {/* Small info text above dotted section */}
-          <div className="flex items-center gap-1.5 text-xs text-gray-500 font-light">
-            <Info className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-            <span>Uploaded orders will appear in the Orders list for processing and review.</span>
+          {/* Explicit note stating 10 files can be uploaded at once */}
+          <div className="flex items-center gap-2 text-xs text-amber-900 bg-amber-50/80 border border-amber-200/80 px-3 py-2 rounded-lg font-medium">
+            <Info className="w-4 h-4 text-[#F8B800] shrink-0" />
+            <span>{dict.uploadModal.infoNotice}</span>
           </div>
 
           {/* Drag & Drop Upload Area */}
@@ -378,16 +391,16 @@ export const POIntakeModal: React.FC<POIntakeModalProps> = ({
               ref={fileInputRef}
               type="file"
               multiple
-              accept=".pdf,.xlsx,.xml"
+              accept=".pdf,.xlsx,.xls,.xml"
               onChange={handleFileChange}
               className="hidden"
             />
             <Upload className="w-10 h-10 text-[#F8B800] mx-auto mb-2" />
             <span className="text-xs font-bold text-[#262626] block">
-              Drag & Drop Purchase Orders here or click to browse
+              {dict.uploadModal.dropzoneTitle}
             </span>
             <p className="text-[11px] text-gray-500 mt-1 font-light">
-              Supports multiple files (PDF, XML, Excel .xlsx)
+              {dict.uploadModal.dropzoneSubtitle}
             </p>
           </div>
 
@@ -396,7 +409,7 @@ export const POIntakeModal: React.FC<POIntakeModalProps> = ({
             <div className="space-y-2 border-t border-[#E0E0E0] pt-3">
               <div className="flex items-center justify-between text-xs">
                 <span className="font-bold text-[#1A1A1A]">
-                  Documents ({selectedFiles.length}):
+                  {dict.uploadModal.documentsHeader} ({selectedFiles.length} / {MAX_UPLOAD_FILES}):
                 </span>
               </div>
 
@@ -427,7 +440,7 @@ export const POIntakeModal: React.FC<POIntakeModalProps> = ({
                           handleRemoveFile(idx);
                         }}
                         className="text-gray-400 hover:text-red-600 p-0.5 cursor-pointer transition-colors"
-                        title="Remove file"
+                        title={dict.uploadModal.removeFile}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -450,7 +463,7 @@ export const POIntakeModal: React.FC<POIntakeModalProps> = ({
           {isUploading && (
             <div className="p-3 bg-blue-50 border border-blue-200 rounded text-xs text-blue-800 flex items-center gap-2">
               <RefreshCw className="w-4 h-4 animate-spin text-blue-600" />
-              <span>Adding {selectedFiles.length} order(s) to processing queue...</span>
+              <span>{dict.uploadModal.uploadingNotice}</span>
             </div>
           )}
         </div>
@@ -462,7 +475,7 @@ export const POIntakeModal: React.FC<POIntakeModalProps> = ({
             disabled={isUploading}
             className="px-4 py-2 border border-[#E0E0E0] text-gray-700 hover:bg-gray-200 rounded text-xs font-semibold cursor-pointer transition-colors"
           >
-            Cancel
+            {dict.uploadModal.cancelBtn}
           </button>
           <button
             onClick={handleUploadSubmit}
@@ -470,7 +483,9 @@ export const POIntakeModal: React.FC<POIntakeModalProps> = ({
             className="bg-[#f7b611] hover:bg-[#e2a508] text-white font-semibold px-5 py-2 rounded text-xs flex items-center gap-2 cursor-pointer transition-colors shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Upload className="w-4 h-4 text-white" />
-            <span className="text-white">Upload {selectedFiles.length > 0 ? `(${selectedFiles.length})` : ''}</span>
+            <span className="text-white">
+              {dict.uploadModal.uploadBtn} {selectedFiles.length > 0 ? `(${selectedFiles.length})` : ''}
+            </span>
           </button>
         </div>
       </div>

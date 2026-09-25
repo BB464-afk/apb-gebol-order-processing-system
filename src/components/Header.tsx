@@ -1,20 +1,21 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Upload, LogOut, ShieldCheck, Mail, User } from 'lucide-react';
+import { Upload, LogOut, ShieldCheck, Mail, User, Globe } from 'lucide-react';
 import { getUserProfile, UserRole } from '../types/user';
 import { NotificationCenter } from './NotificationCenter';
 import { useTheme } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
 
 interface HeaderProps {
   onNewIntake: () => void;
   activeNavTitle?: string;
-  activeNav?: 'processing' | 'orders' | 'customer-master' | 'article-master';
+  activeNav?: 'processing' | 'orders' | 'customer-master' | 'article-master' | 'user-management';
   isSidebarCollapsed?: boolean;
   onToggleSidebar?: () => void;
   userEmail?: string;
   userRole?: UserRole;
   isNormalUser?: boolean;
   onLogout?: () => void;
-  onNavigateToEntity?: (nav: 'orders' | 'processing' | 'customer-master' | 'article-master', poId?: string) => void;
+  onNavigateToEntity?: (nav: 'orders' | 'processing' | 'customer-master' | 'article-master' | 'user-management', poId?: string) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -30,6 +31,7 @@ export const Header: React.FC<HeaderProps> = ({
   onNavigateToEntity,
 }) => {
   const { isThemeB } = useTheme();
+  const { language, setLanguage, dict } = useLanguage();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
 
@@ -85,9 +87,14 @@ export const Header: React.FC<HeaderProps> = ({
           activeNav !== 'orders' &&
           activeNav !== 'customer-master' &&
           activeNav !== 'article-master' &&
+          activeNav !== 'user-management' &&
           activeNavTitle !== 'Upload Order' &&
           activeNavTitle !== 'Orders' &&
-          activeNavTitle !== 'Master Data' && (
+          activeNavTitle !== 'Aufträge' &&
+          activeNavTitle !== 'Master Data' &&
+          activeNavTitle !== 'Stammdaten' &&
+          activeNavTitle !== 'User Management' &&
+          activeNavTitle !== 'Benutzerverwaltung' && (
             <h1
               className={`text-base font-bold tracking-tight page-header-title ${
                 isThemeB ? 'text-white' : 'text-[#4f4f4e]'
@@ -98,8 +105,48 @@ export const Header: React.FC<HeaderProps> = ({
           )}
       </div>
 
-      {/* Right side: Notification Center & Profile Menu */}
+      {/* Right side: Language Toggle, Notification Center & Profile Menu */}
       <div className="flex items-center space-x-2.5">
+        {/* Language Switcher Toggle (EN | DE) positioned directly on the left of Notification */}
+        <div
+          className={`flex items-center rounded-lg p-0.5 border ${
+            isThemeB
+              ? 'bg-[#262A36] border-[#383E4D]'
+              : 'bg-gray-100 border-gray-300'
+          }`}
+          role="group"
+          aria-label="Language selection"
+        >
+          <button
+            type="button"
+            onClick={() => setLanguage('en')}
+            title="English"
+            className={`px-2 py-1 text-[11px] font-bold rounded cursor-pointer transition-all duration-150 ${
+              language === 'en'
+                ? 'bg-[#F8B800] text-[#1A1A1A] shadow-xs scale-100'
+                : isThemeB
+                ? 'text-gray-400 hover:text-white'
+                : 'text-gray-500 hover:text-gray-900'
+            }`}
+          >
+            EN
+          </button>
+          <button
+            type="button"
+            onClick={() => setLanguage('de')}
+            title="Deutsch"
+            className={`px-2 py-1 text-[11px] font-bold rounded cursor-pointer transition-all duration-150 ${
+              language === 'de'
+                ? 'bg-[#F8B800] text-[#1A1A1A] shadow-xs scale-100'
+                : isThemeB
+                ? 'text-gray-400 hover:text-white'
+                : 'text-gray-500 hover:text-gray-900'
+            }`}
+          >
+            DE
+          </button>
+        </div>
+
         {/* Notification Center */}
         <NotificationCenter onNavigateToEntity={onNavigateToEntity} />
 
@@ -107,7 +154,7 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="relative" ref={profileMenuRef}>
           <button
             onClick={() => setIsProfileOpen((prev) => !prev)}
-            title={`User Profile (${user.name})`}
+            title={`${dict.header.userProfile} (${user.name})`}
             style={{ borderRadius: '50%', color: '#ffffff' }}
             className="w-7 h-7 rounded-full bg-[#262626] text-white hover:bg-[#383838] active:scale-95 border-2 border-[#F8B800] flex items-center justify-center font-bold text-[11px] shadow-xs transition-all cursor-pointer select-none shrink-0 header-profile-btn"
             aria-expanded={isProfileOpen}
@@ -146,7 +193,9 @@ export const Header: React.FC<HeaderProps> = ({
                 <div className="flex items-start gap-2 text-gray-600 profile-detail-row">
                   <Mail className="w-3.5 h-3.5 mt-0.5 text-gray-400 shrink-0 profile-detail-icon" />
                   <div className="flex flex-col min-w-0">
-                    <span className="text-[10px] text-gray-400 font-medium profile-detail-label">Email ID</span>
+                    <span className="text-[10px] text-gray-400 font-medium profile-detail-label">
+                      {dict.header.emailId}
+                    </span>
                     <span className="text-xs text-[#1A1A1A] profile-text-dark profile-detail-value font-medium break-all select-all">
                       {user.email}
                     </span>
@@ -156,7 +205,9 @@ export const Header: React.FC<HeaderProps> = ({
                 <div className="flex items-start gap-2 text-gray-600 profile-detail-row">
                   <ShieldCheck className="w-3.5 h-3.5 mt-0.5 text-gray-400 shrink-0 profile-detail-icon" />
                   <div className="flex flex-col min-w-0">
-                    <span className="text-[10px] text-gray-400 font-medium profile-detail-label">Role</span>
+                    <span className="text-[10px] text-gray-400 font-medium profile-detail-label">
+                      {dict.header.role}
+                    </span>
                     <div className="flex items-center gap-1.5 mt-0.5">
                       <span className="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
                       <span className="text-xs font-semibold text-[#1A1A1A] profile-text-dark profile-role-badge">
@@ -179,7 +230,7 @@ export const Header: React.FC<HeaderProps> = ({
                     className="w-full flex items-center justify-center gap-2 py-2 px-3 text-xs font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors cursor-pointer profile-logout-btn"
                   >
                     <LogOut className="w-3.5 h-3.5" />
-                    <span>Log Out</span>
+                    <span>{dict.header.logOut}</span>
                   </button>
                 </div>
               )}

@@ -24,6 +24,7 @@ import {
 import { PurchaseOrderRecord, POStatus } from '../types/po';
 import { formatDateToDDMMYYYY, formatDateOnly } from '../utils/dateUtils';
 import { useTheme } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
 import { SearchableMultiSelect } from './SearchableMultiSelect';
 
 interface POQueueTableProps {
@@ -38,22 +39,19 @@ const normalizeStatus = (status: string): string => {
   if (status === 'Processing') return 'Processing';
   if (status === 'Needs Review') return 'Needs Review';
   if (
+    status === 'Completed' ||
+    status === 'Exported' ||
+    status === 'XML Generated' ||
     status === 'Processed' ||
     status === 'Ready' ||
     status === 'Ready for XML' ||
     status === 'Ready For XML'
   )
-    return 'Ready For XML';
-  if (
-    status === 'Completed' ||
-    status === 'Exported' ||
-    status === 'XML Generated'
-  )
     return 'XML Generated';
   return status;
 };
 
-const STATUS_OPTIONS = ['Processing', 'Needs Review', 'Ready For XML', 'XML Generated', 'Failed'];
+const STATUS_OPTIONS = ['Processing', 'Needs Review', 'XML Generated', 'Failed'];
 
 const formatIsoToDisplay = (isoStr: string): string => {
   if (!isoStr) return '';
@@ -71,6 +69,9 @@ export const POQueueTable: React.FC<POQueueTableProps> = ({
   onOpenXmlModal,
 }) => {
   const { isThemeB } = useTheme();
+  const { language, dict } = useLanguage();
+  const isDe = language === 'de';
+
   const [searchTerm, setSearchTerm] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
@@ -160,12 +161,28 @@ export const POQueueTable: React.FC<POQueueTableProps> = ({
   const [currentPage, setCurrentPage] = useState<number>(1);
   const rowsPerPage = 10;
 
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'Processing':
+        return dict.status.processing;
+      case 'Needs Review':
+        return dict.status.needsReview;
+      case 'XML Generated':
+      case 'Completed':
+      case 'Exported':
+        return dict.status.xmlGenerated;
+      case 'Failed':
+        return dict.status.failed;
+      default:
+        return status;
+    }
+  };
+
   // Available filter options derived from valid orders
   const availableStatuses = useMemo(() => {
     const counts: Record<string, number> = {
       'Processing': 0,
       'Needs Review': 0,
-      'Ready For XML': 0,
       'XML Generated': 0,
       'Failed': 0,
     };
@@ -175,107 +192,136 @@ export const POQueueTable: React.FC<POQueueTableProps> = ({
     });
     return STATUS_OPTIONS.map((status) => ({
       status,
+      label: getStatusLabel(status),
       count: counts[status] || 0,
     }));
-  }, [validOrders]);
+  }, [validOrders, language]);
 
   const availableCustomers = useMemo(() => {
     const counts: Record<string, number> = {};
     validOrders.forEach((o) => {
-      const name = o.buyer?.companyName?.trim() || 'Unknown Customer';
-      counts[name] = (counts[name] || 0) + 1;
+      const name = o.buyer.companyName;
+      if (name) {
+        counts[name] = (counts[name] || 0) + 1;
+      }
     });
     return Object.keys(counts)
-      .sort()
-      .map((name) => ({ name, count: counts[name] }));
+      .sort((a, b) => a.localeCompare(b))
+      .map((name) => ({
+        name,
+        count: counts[name],
+      }));
   }, [validOrders]);
 
   const availableUploadedBys = useMemo(() => {
     const counts: Record<string, number> = {};
     validOrders.forEach((o) => {
-      const uploader = (o.uploadedBy || 'System Gateway').trim();
-      counts[uploader] = (counts[uploader] || 0) + 1;
+      const u = o.uploadedBy || 'System Gateway';
+      counts[u] = (counts[u] || 0) + 1;
     });
     return Object.keys(counts)
-      .sort()
-      .map((name) => ({ name, count: counts[name] }));
+      .sort((a, b) => a.localeCompare(b))
+      .map((name) => ({
+        name,
+        count: counts[name],
+      }));
   }, [validOrders]);
 
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (selectedStatuses.length > 0) count += selectedStatuses.length;
+    if (selectedCustomers.length > 0) count += selectedCustomers.length;
+    if (selectedUploadedBys.length > 0) count += selectedUploadedBys.length;
+    if (selectedUploadDate) count += 1;
+    if (selectedUploadDateFrom || selectedUploadDateTo) count += 1;
+    return count;
+  }, [
+    selectedStatuses,
+    selectedCustomers,
+    selectedUploadedBys,
+    selectedUploadDate,
+    selectedUploadDateFrom,
+    selectedUploadDateTo,
+  ]);
+
+  const tempFilterCount = useMemo(() => {
+    let count = 0;
+    if (tempSelectedStatuses.length > 0) count += tempSelectedStatuses.length;
+    if (tempSelectedCustomers.length > 0) count += tempSelectedCustomers.length;
+    if (tempSelectedUploadedBys.length > 0) count += tempSelectedUploadedBys.length;
+    if (tempUploadDate) count += 1;
+    if (tempUploadDateFrom || tempUploadDateTo) count += 1;
+    return count;
+  }, [
+    tempSelectedStatuses,
+    tempSelectedCustomers,
+    tempSelectedUploadedBys,
+    tempUploadDate,
+    tempUploadDateFrom,
+    tempUploadDateTo,
+  ]);
+
+  // Combined Multi-Filter and Search Logic
   const filteredOrders = useMemo(() => {
     return validOrders.filter((order) => {
-      const searchLower = searchTerm.toLowerCase().trim();
+      // 1. Search Query Match
       const matchesSearch =
-        !searchLower ||
-        order.id.toLowerCase().includes(searchLower) ||
-        (order.sourceFileName || '').toLowerCase().includes(searchLower) ||
-        order.buyer.companyName.toLowerCase().includes(searchLower) ||
-        (order.uploadedBy || '').toLowerCase().includes(searchLower) ||
-        order.order.poNumber.toLowerCase().includes(searchLower);
+        !searchTerm ||
+        (order.order.poNumber || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (order.id || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (order.buyer.companyName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (order.sourceFileName || '').toLowerCase().includes(searchTerm.toLowerCase());
 
-      const orderNormalizedStatus = normalizeStatus(order.status);
+      // 2. Status Match
+      const orderStatusNorm = normalizeStatus(order.status);
       const matchesStatus =
-        selectedStatuses.length === 0 || selectedStatuses.includes(orderNormalizedStatus);
+        selectedStatuses.length === 0 || selectedStatuses.includes(orderStatusNorm);
 
-      const customerName = order.buyer?.companyName?.trim() || 'Unknown Customer';
+      // 3. Customer Match
       const matchesCustomer =
-        selectedCustomers.length === 0 || selectedCustomers.includes(customerName);
+        selectedCustomers.length === 0 ||
+        selectedCustomers.includes(order.buyer.companyName);
 
-      // Date filtering logic (Specific date or Date Range)
+      // 4. Uploaded By Match
+      const uploader = order.uploadedBy || 'System Gateway';
+      const matchesUploadedBy =
+        selectedUploadedBys.length === 0 || selectedUploadedBys.includes(uploader);
+
+      // 5. Date Match
       let matchesDate = true;
-      const orderDateIso = (order.receivedAt || '').substring(0, 10); // e.g. "2026-08-13"
+      const orderDateIso = (order.receivedAt || '').substring(0, 10);
       if (selectedUploadDate) {
         matchesDate = orderDateIso === selectedUploadDate;
       } else if (selectedUploadDateFrom || selectedUploadDateTo) {
-        if (selectedUploadDateFrom && orderDateIso < selectedUploadDateFrom) {
-          matchesDate = false;
-        }
-        if (selectedUploadDateTo && orderDateIso > selectedUploadDateTo) {
-          matchesDate = false;
+        if (selectedUploadDateFrom && selectedUploadDateTo) {
+          matchesDate =
+            orderDateIso >= selectedUploadDateFrom && orderDateIso <= selectedUploadDateTo;
+        } else if (selectedUploadDateFrom) {
+          matchesDate = orderDateIso >= selectedUploadDateFrom;
+        } else if (selectedUploadDateTo) {
+          matchesDate = orderDateIso <= selectedUploadDateTo;
         }
       }
-
-      const uploader = (order.uploadedBy || 'System Gateway').trim();
-      const matchesUploader =
-        selectedUploadedBys.length === 0 || selectedUploadedBys.includes(uploader);
 
       return (
         matchesSearch &&
         matchesStatus &&
         matchesCustomer &&
-        matchesDate &&
-        matchesUploader
+        matchesUploadedBy &&
+        matchesDate
       );
     });
   }, [
-    orders,
+    validOrders,
     searchTerm,
     selectedStatuses,
     selectedCustomers,
+    selectedUploadedBys,
     selectedUploadDate,
     selectedUploadDateFrom,
     selectedUploadDateTo,
-    selectedUploadedBys,
   ]);
 
-  const hasActiveDateFilter = Boolean(
-    selectedUploadDate || selectedUploadDateFrom || selectedUploadDateTo
-  );
-  const activeFilterCount =
-    selectedStatuses.length +
-    selectedCustomers.length +
-    (hasActiveDateFilter ? 1 : 0) +
-    selectedUploadedBys.length;
-
-  const hasTempDateFilter = Boolean(
-    tempUploadDate || tempUploadDateFrom || tempUploadDateTo
-  );
-  const tempFilterCount =
-    tempSelectedStatuses.length +
-    tempSelectedCustomers.length +
-    (hasTempDateFilter ? 1 : 0) +
-    tempSelectedUploadedBys.length;
-
-  // Pagination calculations
   const totalPages = Math.ceil(filteredOrders.length / rowsPerPage) || 1;
   const safeCurrentPage = Math.min(currentPage, totalPages);
   const paginatedOrders = useMemo(() => {
@@ -284,38 +330,27 @@ export const POQueueTable: React.FC<POQueueTableProps> = ({
   }, [filteredOrders, safeCurrentPage, rowsPerPage]);
 
   const getStatusBadge = (status: POStatus) => {
-    switch (status) {
+    const norm = normalizeStatus(status);
+    switch (norm) {
       case 'Failed':
         return (
           <span className={`inline-flex items-center gap-1 ${isThemeB ? 'px-2 py-0.2 text-[10.5px]' : 'px-2.5 py-0.5 text-[11px]'} rounded font-semibold bg-red-100 text-[#C62828] border border-red-300`}>
             {!isThemeB && <XCircle className="w-3.5 h-3.5 text-[#C62828]" />}
-            Failed
+            {dict.status.failed}
           </span>
         );
-      case 'Completed':
-      case 'Exported':
       case 'XML Generated':
         return (
           <span className={`inline-flex items-center gap-1 ${isThemeB ? 'px-2 py-0.2 text-[10.5px]' : 'px-2.5 py-0.5 text-[11px]'} rounded font-semibold bg-emerald-100 text-[#2E7D32] border border-emerald-300`}>
             {!isThemeB && <CheckCircle2 className="w-3.5 h-3.5 text-[#2E7D32]" />}
-            XML Generated
-          </span>
-        );
-      case 'Ready for XML':
-      case 'Ready For XML':
-      case 'Processed':
-      case 'Ready':
-        return (
-          <span className={`inline-flex items-center gap-1 ${isThemeB ? 'px-2 py-0.2 text-[10.5px]' : 'px-2.5 py-0.5 text-[11px]'} rounded font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200`}>
-            {!isThemeB && <CheckCircle className="w-3.5 h-3.5 text-indigo-600" />}
-            Ready For XML
+            {dict.status.xmlGenerated}
           </span>
         );
       case 'Needs Review':
         return (
           <span className={`inline-flex items-center gap-1 ${isThemeB ? 'px-2 py-0.2 text-[10.5px]' : 'px-2.5 py-0.5 text-[11px]'} rounded font-semibold bg-amber-50 text-amber-700 border border-amber-300`}>
             {!isThemeB && <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />}
-            Needs Review
+            {dict.status.needsReview}
           </span>
         );
       case 'Processing':
@@ -323,7 +358,7 @@ export const POQueueTable: React.FC<POQueueTableProps> = ({
         return (
           <span className={`inline-flex items-center gap-1 ${isThemeB ? 'px-2 py-0.2 text-[10.5px]' : 'px-2.5 py-0.5 text-[11px]'} rounded font-semibold bg-blue-50 text-blue-700 border border-blue-200`}>
             {!isThemeB && <Clock className="w-3.5 h-3.5 animate-spin text-blue-600" />}
-            Processing
+            {dict.status.processing}
           </span>
         );
     }
@@ -334,9 +369,11 @@ export const POQueueTable: React.FC<POQueueTableProps> = ({
       {/* 🔹 1. TOP HEADER WITH TITLE & ACTION BUTTONS */}
       <div className="flex flex-wrap items-center justify-between gap-4 py-0.5">
         <div>
-          <h1 className="text-[22px] font-bold text-[#4f4f4e] tracking-tight page-header-title">Orders</h1>
+          <h1 className="text-[22px] font-bold text-[#4f4f4e] tracking-tight page-header-title">
+            {dict.orders.title}
+          </h1>
           <p className="text-[15px] text-[#8f9494] mt-0.5 font-light">
-            Manage purchase orders, review processing status, and access generated XML.
+            {dict.orders.subtitle}
           </p>
         </div>
 
@@ -350,7 +387,7 @@ export const POQueueTable: React.FC<POQueueTableProps> = ({
                 <input
                   type="text"
                   autoFocus
-                  placeholder="Search orders..."
+                  placeholder={dict.orders.searchPlaceholder}
                   value={searchTerm}
                   onChange={(e) => {
                     setSearchTerm(e.target.value);
@@ -375,7 +412,7 @@ export const POQueueTable: React.FC<POQueueTableProps> = ({
               <button
                 type="button"
                 onClick={() => setIsSearchOpen(true)}
-                title="Search orders"
+                title={dict.common.search}
                 className={`p-2 rounded border transition-colors cursor-pointer shadow-2xs flex items-center justify-center ${
                   isThemeB
                     ? 'bg-[#262626] border-[#383838] text-white hover:bg-[#333333]'
@@ -391,7 +428,7 @@ export const POQueueTable: React.FC<POQueueTableProps> = ({
           <button
             type="button"
             onClick={handleOpenFilterModal}
-            title="Filter orders"
+            title={dict.common.filter}
             className={`p-2 rounded border transition-colors cursor-pointer shadow-2xs relative flex items-center justify-center ${
               activeFilterCount > 0
                 ? isThemeB
@@ -428,7 +465,7 @@ export const POQueueTable: React.FC<POQueueTableProps> = ({
             } font-semibold px-3.5 py-1.5 rounded text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs`}
           >
             <Upload className={`w-3.5 h-3.5 ${isThemeB ? 'text-black' : 'text-white'}`} />
-            <span className={isThemeB ? 'text-black' : 'text-white'}>Upload Order</span>
+            <span className={isThemeB ? 'text-black' : 'text-white'}>{dict.orders.uploadOrderBtn}</span>
           </button>
         </div>
       </div>
@@ -442,7 +479,7 @@ export const POQueueTable: React.FC<POQueueTableProps> = ({
         selectedUploadedBys.length > 0 ||
         searchTerm) && (
         <div className="flex items-center flex-wrap gap-1.5 py-1 text-xs">
-          <span className="text-gray-400 text-[11px] font-medium mr-1">Active filters:</span>
+          <span className="text-gray-400 text-[11px] font-medium mr-1">{dict.common.activeFilters}</span>
           {searchTerm && (
             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-gray-100 border border-gray-300 text-gray-800 rounded-full text-[11px] font-medium">
               Search: <strong>&quot;{searchTerm}&quot;</strong>
@@ -462,9 +499,9 @@ export const POQueueTable: React.FC<POQueueTableProps> = ({
           {selectedStatuses.map((st) => (
             <span
               key={st}
-              className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-amber-50 border border-amber-200 text-amber-900 rounded-full text-[11px] font-medium"
+              className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-blue-50 border border-blue-200 text-blue-900 rounded-full text-[11px] font-medium"
             >
-              Status: <strong>{st}</strong>
+              Status: <strong>{getStatusLabel(st)}</strong>
               <button
                 type="button"
                 onClick={() => {
@@ -481,7 +518,7 @@ export const POQueueTable: React.FC<POQueueTableProps> = ({
           {selectedCustomers.map((cust) => (
             <span
               key={cust}
-              className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-blue-50 border border-blue-200 text-blue-900 rounded-full text-[11px] font-medium"
+              className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-amber-50 border border-amber-200 text-amber-900 rounded-full text-[11px] font-medium"
             >
               Customer: <strong>{cust}</strong>
               <button
@@ -565,7 +602,7 @@ export const POQueueTable: React.FC<POQueueTableProps> = ({
             onClick={handleClearAllActiveFilters}
             className="text-xs text-gray-500 hover:text-red-700 underline font-semibold cursor-pointer ml-1"
           >
-            Clear all
+            {dict.common.clearFilters}
           </button>
         </div>
       )}
@@ -582,13 +619,27 @@ export const POQueueTable: React.FC<POQueueTableProps> = ({
                     : 'bg-gray-100/90 text-gray-700 border-gray-200 text-xs'
                 } font-bold border-b`}
               >
-                <th className={`${isThemeB ? 'py-1 px-2.5' : 'py-2 px-3'} font-bold`}>Customer Order No.</th>
-                <th className={`${isThemeB ? 'py-1 px-2.5' : 'py-2 px-3'} font-bold`}>Customer</th>
-                <th className={`${isThemeB ? 'py-1 px-2.5' : 'py-2 px-3'} font-bold`}>Uploaded Document</th>
-                <th className={`${isThemeB ? 'py-1 px-2.5' : 'py-2 px-3'} text-center font-bold`}>Status</th>
-                <th className={`${isThemeB ? 'py-1 px-2.5' : 'py-2 px-3'} font-bold`}>Upload Date</th>
-                <th className={`${isThemeB ? 'py-1 px-2.5' : 'py-2 px-3'} font-bold`}>Uploaded By</th>
-                <th className={`${isThemeB ? 'py-1 px-2.5' : 'py-2 px-3'} text-center font-bold`}>Actions</th>
+                <th className={`${isThemeB ? 'py-1 px-2.5' : 'py-2 px-3'} font-bold`}>
+                  {dict.orders.table.orderId}
+                </th>
+                <th className={`${isThemeB ? 'py-1 px-2.5' : 'py-2 px-3'} font-bold`}>
+                  {dict.orders.table.customer}
+                </th>
+                <th className={`${isThemeB ? 'py-1 px-2.5' : 'py-2 px-3'} font-bold`}>
+                  {dict.orders.table.sourceFile}
+                </th>
+                <th className={`${isThemeB ? 'py-1 px-2.5' : 'py-2 px-3'} text-center font-bold`}>
+                  {dict.orders.table.status}
+                </th>
+                <th className={`${isThemeB ? 'py-1 px-2.5' : 'py-2 px-3'} font-bold`}>
+                  {dict.orders.table.receivedDate}
+                </th>
+                <th className={`${isThemeB ? 'py-1 px-2.5' : 'py-2 px-3'} font-bold`}>
+                  {isDe ? 'Hochgeladen von' : 'Uploaded By'}
+                </th>
+                <th className={`${isThemeB ? 'py-1 px-2.5' : 'py-2 px-3'} text-center font-bold`}>
+                  {dict.orders.table.actions}
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E0E0E0] text-[11.5px]">
@@ -597,20 +648,13 @@ export const POQueueTable: React.FC<POQueueTableProps> = ({
                   <td colSpan={7} className="py-12 text-center text-[#8f9494]">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <FileText className="w-8 h-8 text-gray-300" />
-                      <p className="font-semibold text-[#4f4f4e]">No purchase orders found</p>
-                      <p className="text-xs text-[#8f9494]">
-                        Try adjusting your search query or reset active status filters.
-                      </p>
+                      <p className="font-semibold text-[#4f4f4e]">{dict.common.noDataFound}</p>
                     </div>
                   </td>
                 </tr>
               ) : (
                 paginatedOrders.map((order) => {
                   const isProcessing = order.status === 'Processing';
-                  const isXmlGenerated =
-                    order.status === 'Completed' ||
-                    order.status === 'Exported' ||
-                    (order.status as string) === 'XML Generated';
 
                   return (
                     <tr
@@ -677,7 +721,7 @@ export const POQueueTable: React.FC<POQueueTableProps> = ({
                                 isThemeB ? 'w-6 h-6 p-1 justify-center' : 'px-2.5 py-1 text-xs'
                               } rounded flex items-center gap-1 cursor-not-allowed select-none`}
                             >
-                              {!isThemeB && <span>Processing</span>}
+                              {!isThemeB && <span>{dict.status.processing}</span>}
                               <Clock className="w-3.5 h-3.5 text-gray-400 animate-spin" />
                             </button>
                           ) : order.status === 'Failed' ? (
@@ -690,7 +734,7 @@ export const POQueueTable: React.FC<POQueueTableProps> = ({
                                 isThemeB ? 'text-black w-6 h-6 p-1 justify-center' : 'text-white px-2.5 py-1 text-xs'
                               } font-semibold rounded flex items-center gap-1 cursor-pointer transition-colors shadow-2xs`}
                             >
-                              {!isThemeB && <span className="text-white">Review</span>}
+                              {!isThemeB && <span className="text-white">{isDe ? 'Prüfen' : 'Review'}</span>}
                               <ArrowRight className={`w-3.5 h-3.5 ${isThemeB ? 'text-black stroke-[2.5]' : 'text-white'}`} />
                             </button>
                           )}
@@ -712,11 +756,11 @@ export const POQueueTable: React.FC<POQueueTableProps> = ({
             className="px-2.5 py-1 bg-white border border-[#E0E0E0] rounded-none font-semibold text-xs text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 flex items-center gap-1 cursor-pointer"
           >
             <ChevronLeft className="w-3.5 h-3.5" />
-            <span>Previous</span>
+            <span>{dict.common.back}</span>
           </button>
 
           <span className="font-mono font-bold text-[#1A1A1A] px-2 py-0.5 bg-gray-100 rounded-none border border-gray-200">
-            Page {safeCurrentPage} of {totalPages}
+            {dict.common.page} {safeCurrentPage} {dict.common.of} {totalPages}
           </span>
 
           <button
@@ -724,7 +768,7 @@ export const POQueueTable: React.FC<POQueueTableProps> = ({
             onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
             className="px-2.5 py-1 bg-white border border-[#E0E0E0] rounded-none font-semibold text-xs text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 flex items-center gap-1 cursor-pointer"
           >
-            <span>Next</span>
+            <span>{dict.common.next}</span>
             <ChevronRight className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -756,7 +800,7 @@ export const POQueueTable: React.FC<POQueueTableProps> = ({
                     isThemeB ? 'text-white' : 'text-gray-900'
                   }`}
                 >
-                  Filter Orders
+                  {dict.orders.filterModal.title}
                 </h3>
               </div>
               <button
@@ -782,15 +826,15 @@ export const POQueueTable: React.FC<POQueueTableProps> = ({
                     <SearchableMultiSelect
                       isFullWidth
                       forceLightMode={true}
-                      label="Status"
+                      label={dict.orders.filterModal.statusLabel}
                       options={availableStatuses.map((s) => ({
-                        label: s.status,
+                        label: s.label,
                         value: s.status,
                         count: s.count,
                       }))}
                       selectedValues={tempSelectedStatuses}
                       onChange={(newVal) => setTempSelectedStatuses(newVal)}
-                      searchPlaceholder="Search status..."
+                      searchPlaceholder={dict.orders.filterModal.statusLabel + '...'}
                     />
                   </div>
 
@@ -799,7 +843,7 @@ export const POQueueTable: React.FC<POQueueTableProps> = ({
                     <SearchableMultiSelect
                       isFullWidth
                       forceLightMode={true}
-                      label="Customer"
+                      label={dict.orders.filterModal.customerLabel}
                       options={availableCustomers.map((c) => ({
                         label: c.name,
                         value: c.name,
@@ -807,7 +851,7 @@ export const POQueueTable: React.FC<POQueueTableProps> = ({
                       }))}
                       selectedValues={tempSelectedCustomers}
                       onChange={(newVal) => setTempSelectedCustomers(newVal)}
-                      searchPlaceholder="Search customer..."
+                      searchPlaceholder={dict.orders.filterModal.customerLabel + '...'}
                     />
                   </div>
 
@@ -816,7 +860,7 @@ export const POQueueTable: React.FC<POQueueTableProps> = ({
                     <SearchableMultiSelect
                       isFullWidth
                       forceLightMode={true}
-                      label="Uploaded By"
+                      label={dict.orders.filterModal.uploadedByLabel}
                       options={availableUploadedBys.map((u) => ({
                         label: u.name,
                         value: u.name,
@@ -824,7 +868,7 @@ export const POQueueTable: React.FC<POQueueTableProps> = ({
                       }))}
                       selectedValues={tempSelectedUploadedBys}
                       onChange={(newVal) => setTempSelectedUploadedBys(newVal)}
-                      searchPlaceholder="Search uploader..."
+                      searchPlaceholder={dict.orders.filterModal.uploadedByLabel + '...'}
                     />
                   </div>
                 </div>
@@ -835,7 +879,7 @@ export const POQueueTable: React.FC<POQueueTableProps> = ({
                     <div className="flex items-center justify-between mb-1.5">
                       <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-700">
                         <Calendar className="w-3.5 h-3.5 text-gray-600" />
-                        <span>Upload Date</span>
+                        <span>{dict.orders.filterModal.dateLabel}</span>
                       </label>
                       {(tempUploadDate || tempUploadDateFrom || tempUploadDateTo) && (
                         <button
@@ -847,7 +891,7 @@ export const POQueueTable: React.FC<POQueueTableProps> = ({
                           }}
                           className="text-[11px] text-gray-500 hover:text-red-600 underline cursor-pointer"
                         >
-                          Clear
+                          {dict.common.reset}
                         </button>
                       )}
                     </div>
@@ -864,7 +908,7 @@ export const POQueueTable: React.FC<POQueueTableProps> = ({
                               : 'text-gray-600 hover:text-gray-900'
                           }`}
                         >
-                          Specific Date
+                          {dict.orders.filterModal.singleDate}
                         </button>
                         <button
                           type="button"
@@ -875,7 +919,7 @@ export const POQueueTable: React.FC<POQueueTableProps> = ({
                               : 'text-gray-600 hover:text-gray-900'
                           }`}
                         >
-                          Date Range
+                          {dict.orders.filterModal.dateRange}
                         </button>
                       </div>
 
@@ -897,7 +941,9 @@ export const POQueueTable: React.FC<POQueueTableProps> = ({
                         <div className="space-y-1.5">
                           <div className="grid grid-cols-2 gap-2">
                             <div>
-                              <span className="block text-[10px] text-gray-500 mb-0.5 font-medium">From</span>
+                              <span className="block text-[10px] text-gray-500 mb-0.5 font-medium">
+                                {dict.orders.filterModal.fromDate}
+                              </span>
                               <input
                                 type="date"
                                 value={tempUploadDateFrom}
@@ -906,7 +952,9 @@ export const POQueueTable: React.FC<POQueueTableProps> = ({
                               />
                             </div>
                             <div>
-                              <span className="block text-[10px] text-gray-500 mb-0.5 font-medium">To</span>
+                              <span className="block text-[10px] text-gray-500 mb-0.5 font-medium">
+                                {dict.orders.filterModal.toDate}
+                              </span>
                               <input
                                 type="date"
                                 value={tempUploadDateTo}
@@ -932,7 +980,7 @@ export const POQueueTable: React.FC<POQueueTableProps> = ({
               </div>
             </div>
 
-            {/* Modal Footer (Light background) */}
+            {/* Modal Footer */}
             <div className="px-5 py-3.5 flex items-center justify-between border-t border-gray-200 bg-gray-50 text-gray-900">
               <button
                 type="button"
@@ -944,7 +992,7 @@ export const POQueueTable: React.FC<POQueueTableProps> = ({
                     : 'text-gray-400 cursor-not-allowed opacity-50'
                 }`}
               >
-                Reset All
+                {dict.orders.filterModal.resetBtn}
               </button>
 
               <div className="flex items-center gap-2.5">
@@ -953,14 +1001,14 @@ export const POQueueTable: React.FC<POQueueTableProps> = ({
                   onClick={() => setIsFilterModalOpen(false)}
                   className="px-3.5 py-1.5 text-xs font-medium rounded-none border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 cursor-pointer transition-colors"
                 >
-                  Cancel
+                  {dict.orders.filterModal.cancelBtn}
                 </button>
                 <button
                   type="button"
                   onClick={handleApplyFilters}
                   className="px-5 py-1.5 bg-[#f7b611] hover:bg-[#e2a508] text-black font-bold rounded-none text-xs cursor-pointer shadow-xs transition-colors"
                 >
-                  Apply Filters
+                  {dict.orders.filterModal.applyBtn}
                 </button>
               </div>
             </div>

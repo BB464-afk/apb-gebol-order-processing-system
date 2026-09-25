@@ -2,6 +2,7 @@ import React, { useState, useMemo, useRef } from 'react';
 import { useToast } from '../context/ToastContext';
 import { useNotifications } from '../context/NotificationContext';
 import { useTheme } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
 import { SearchableMultiSelect } from './SearchableMultiSelect';
 import * as XLSX from 'xlsx';
 import {
@@ -121,6 +122,8 @@ export const CustomerMasterView: React.FC = () => {
   const toast = useToast();
   const { addNotification } = useNotifications();
   const { isThemeB } = useTheme();
+  const { language, dict } = useLanguage();
+  const isDe = language === 'de';
   const [customers, setCustomers] = useState<CustomerMasterRecord[]>(INITIAL_CUSTOMERS);
   const [searchTerm, setSearchTerm] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -710,13 +713,13 @@ export const CustomerMasterView: React.FC = () => {
       {/* 🔹 HEADER WITH TITLE & TOP-RIGHT ACTIONS */}
       <div className="flex flex-wrap items-center justify-between gap-4 py-0.5">
         <div>
-          <h1 className="text-[22px] font-bold text-[#4f4f4e] tracking-tight page-header-title">Customer Master</h1>
+          <h1 className="text-[22px] font-bold text-[#4f4f4e] tracking-tight page-header-title">{dict.customerMaster.title}</h1>
           <p className="text-[15px] text-[#8f9494] mt-0.5 font-light">
-            Manage customer master data used for purchase order processing and customer identification.
+            {dict.customerMaster.subtitle}
           </p>
         </div>
 
-        {/* Top right actions: Search, Filter, Import Icon, Export Icon, Add Customer */}
+        {/* Top right actions: Search, Filter, Import Icon, Export Icon */}
         <div className="flex items-center gap-2">
           {/* Expandable Search Input */}
           <div className="relative flex items-center">
@@ -726,7 +729,7 @@ export const CustomerMasterView: React.FC = () => {
                 <input
                   type="text"
                   autoFocus
-                  placeholder="Search customers..."
+                  placeholder={dict.customerMaster.searchPlaceholder}
                   value={searchTerm}
                   onChange={(e) => {
                     setSearchTerm(e.target.value);
@@ -822,15 +825,6 @@ export const CustomerMasterView: React.FC = () => {
           >
             <Upload className="w-4 h-4 text-blue-600" />
           </button>
-
-          {/* Add Customer Button */}
-          <button
-            onClick={handleOpenAddModal}
-            className="bg-[#f7b611] hover:bg-[#e2a508] text-white font-semibold px-3.5 py-1.5 rounded text-xs flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors"
-          >
-            <Plus className="w-3.5 h-3.5 text-white" />
-            <span className="text-white">Add Customer</span>
-          </button>
         </div>
       </div>
 
@@ -914,13 +908,13 @@ export const CustomerMasterView: React.FC = () => {
                     : 'bg-gray-100/90 text-gray-700 border-gray-200 text-xs'
                 } font-bold border-b`}
               >
-                <th className={`${isThemeB ? 'py-1.5 px-3' : 'py-2 px-3'} font-bold`}>GPNr.</th>
-                <th className={`${isThemeB ? 'py-1.5 px-3' : 'py-2 px-3'} font-bold`}>Company Name</th>
-                <th className={`${isThemeB ? 'py-1.5 px-3' : 'py-2 px-3'} font-bold`}>ZIP Code</th>
-                <th className={`${isThemeB ? 'py-1.5 px-3' : 'py-2 px-3'} font-bold`}>City</th>
-                <th className={`${isThemeB ? 'py-1.5 px-3' : 'py-2 px-3'} font-bold`}>Street</th>
-                <th className={`${isThemeB ? 'py-1.5 px-3' : 'py-2 px-3'} font-bold`}>Country</th>
-                <th className={`${isThemeB ? 'py-1.5 px-3' : 'py-2 px-3'} font-bold`}>ILN</th>
+                <th className={`${isThemeB ? 'py-1.5 px-3' : 'py-2 px-3'} font-bold`}>{isDe ? 'GP-Nr.' : 'GPNr.'}</th>
+                <th className={`${isThemeB ? 'py-1.5 px-3' : 'py-2 px-3'} font-bold`}>{isDe ? 'Firmenname' : 'Company Name'}</th>
+                <th className={`${isThemeB ? 'py-1.5 px-3' : 'py-2 px-3'} font-bold`}>{isDe ? 'PLZ' : 'ZIP Code'}</th>
+                <th className={`${isThemeB ? 'py-1.5 px-3' : 'py-2 px-3'} font-bold`}>{isDe ? 'Ort' : 'City'}</th>
+                <th className={`${isThemeB ? 'py-1.5 px-3' : 'py-2 px-3'} font-bold`}>{isDe ? 'Straße' : 'Street'}</th>
+                <th className={`${isThemeB ? 'py-1.5 px-3' : 'py-2 px-3'} font-bold`}>{isDe ? 'Land' : 'Country'}</th>
+                <th className={`${isThemeB ? 'py-1.5 px-3' : 'py-2 px-3'} font-bold`}>{isDe ? 'ILN / GLN' : 'ILN'}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E0E0E0] text-xs">

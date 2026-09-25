@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useToast } from '../context/ToastContext';
 import { useNotifications } from '../context/NotificationContext';
 import { useTheme } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
 import {
   X,
   Copy,
@@ -29,6 +30,9 @@ export const XmlOutputModal: React.FC<XmlOutputModalProps> = ({
 }) => {
   const toast = useToast();
   const { addNotification } = useNotifications();
+  const { isThemeB } = useTheme();
+  const { language, dict } = useLanguage();
+  const isDe = language === 'de';
   const [copied, setCopied] = useState(false);
 
   if (!isOpen || !po) return null;
@@ -40,7 +44,10 @@ export const XmlOutputModal: React.FC<XmlOutputModalProps> = ({
   const handleCopyXml = () => {
     navigator.clipboard.writeText(xmlContent);
     setCopied(true);
-    toast.success('XML Copied', 'XML copied to clipboard.');
+    toast.success(
+      isDe ? 'XML kopiert' : 'XML Copied',
+      isDe ? 'XML in die Zwischenablage kopiert.' : 'XML copied to clipboard.'
+    );
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -50,22 +57,30 @@ export const XmlOutputModal: React.FC<XmlOutputModalProps> = ({
     (item) => !item.skuMatched || item.gebolArticleNo === 'UNMAPPED-ARTICLE' || item.gebolArticleNo === 'UNMAPPED-SKU' || !item.gebolArticleNo
   );
   if (unmapped.length > 0) {
-    flags.push(`${unmapped.length} unmapped line item${unmapped.length > 1 ? 's' : ''} (missing GEBOL Article ID)`);
+    flags.push(
+      isDe
+        ? `${unmapped.length} nicht zugeordnete(r) Artikel (fehlende GEBOL-Artikelnummer)`
+        : `${unmapped.length} unmapped line item${unmapped.length > 1 ? 's' : ''} (missing GEBOL Article ID)`
+    );
   }
   const variances = po.lineItems.filter(
     (item) => item.priceVariance || (item.contractPrice && item.contractPrice > 0 && Math.abs(item.unitPrice - item.contractPrice) > 0.01)
   );
   if (variances.length > 0) {
-    flags.push(`${variances.length} line item${variances.length > 1 ? 's' : ''} with price variance against contract`);
+    flags.push(
+      isDe
+        ? `${variances.length} Artikelposition(en) mit Preisabweichung zum Vertrag`
+        : `${variances.length} line item${variances.length > 1 ? 's' : ''} with price variance against contract`
+    );
   }
   if (!po.buyer.gln && !po.buyer.customerNumber) {
-    flags.push('Missing customer GLN / ILN identifier');
+    flags.push(isDe ? 'Fehlende GLN / Kundennummer' : 'Missing customer GLN / ILN identifier');
   }
   if (!po.buyer.vatId) {
-    flags.push('Missing buyer VAT ID');
+    flags.push(isDe ? 'Fehlende UID-Nummer (USt-IdNr.)' : 'Missing buyer VAT ID');
   }
   if (!po.delivery.requestedDeliveryDate) {
-    flags.push('Missing requested delivery date');
+    flags.push(isDe ? 'Fehlendes Wunschlieferdatum' : 'Missing requested delivery date');
   }
 
   const handleDownloadXml = () => {
@@ -73,12 +88,15 @@ export const XmlOutputModal: React.FC<XmlOutputModalProps> = ({
     if (flags.length > 0) {
       addNotification({
         scenario: 'xml_generation_failure',
-        title: `XML generation failed: ${ediFilename}`,
-        message: 'XML generation timed out due to high system load. The EDI file could not be generated.',
-        severity: 'error',
+        title: isDe ? `XML-Generierung mit Warnungen: ${ediFilename}` : `XML generation with warnings: ${ediFilename}`,
+        titleDe: `XML-Generierung mit Warnungen: ${ediFilename}`,
+        message: isDe ? 'Die Datei wurde heruntergeladen, enthält jedoch Validierungsabweichungen.' : 'XML file was downloaded with compliance warnings.',
+        messageDe: 'Die Datei wurde heruntergeladen, enthält jedoch Validierungsabweichungen.',
+        severity: 'warning',
         relatedEntityId: po.id,
         relatedEntityType: 'xml',
         actionLabel: 'Review',
+        actionLabelDe: 'Prüfen',
         actionNav: 'orders',
         actionPoId: po.id,
       });
@@ -94,13 +112,17 @@ export const XmlOutputModal: React.FC<XmlOutputModalProps> = ({
     document.body.removeChild(link);
 
     if (flags.length > 0) {
-      toast.warning('XML Downloaded with Warnings', `${ediFilename} contains compliance flags. Logged XML generation failure alert.`);
+      toast.warning(
+        isDe ? 'XML mit Warnungen heruntergeladen' : 'XML Downloaded with Warnings',
+        isDe ? `${ediFilename} enthält Validierungsabweichungen.` : `${ediFilename} contains compliance flags.`
+      );
     } else {
-      toast.success('XML Downloaded', `${ediFilename} downloaded successfully.`);
+      toast.success(
+        isDe ? 'XML heruntergeladen' : 'XML Downloaded',
+        isDe ? `${ediFilename} erfolgreich heruntergeladen.` : `${ediFilename} downloaded successfully.`
+      );
     }
   };
-
-  const { isThemeB } = useTheme();
 
   return (
     <div
@@ -151,7 +173,7 @@ export const XmlOutputModal: React.FC<XmlOutputModalProps> = ({
           <div className="flex items-center gap-2">
             <button
               onClick={handleCopyXml}
-              title="Copy XML payload to clipboard"
+              title={isDe ? 'XML in Zwischenablage kopieren' : 'Copy XML payload to clipboard'}
               className={`px-3.5 py-2 text-xs font-semibold rounded-lg flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs ${
                 isThemeB
                   ? 'bg-[#333333] hover:bg-[#444444] text-gray-200'
@@ -161,28 +183,28 @@ export const XmlOutputModal: React.FC<XmlOutputModalProps> = ({
               {copied ? (
                 <>
                   <Check className="w-4 h-4 text-emerald-500" />
-                  <span className="text-emerald-600 font-bold">Copied!</span>
+                  <span className="text-emerald-600 font-bold">{isDe ? 'Kopiert!' : 'Copied!'}</span>
                 </>
               ) : (
                 <>
                   <Copy className="w-4 h-4 text-gray-400" />
-                  <span>Copy XML</span>
+                  <span>{isDe ? 'XML kopieren' : 'Copy XML'}</span>
                 </>
               )}
             </button>
 
             <button
               onClick={handleDownloadXml}
-              title="Download GEBOL XML document"
+              title={dict.xmlModal.downloadBtn}
               className="px-4 py-2 bg-[#f7b611] hover:bg-[#e2a508] text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
             >
               <Download className="w-4 h-4 text-white" />
-              <span className="text-white">Download XML</span>
+              <span className="text-white">{dict.xmlModal.downloadBtn}</span>
             </button>
 
             <button
               onClick={onClose}
-              title="Close XML view"
+              title={dict.xmlModal.closeBtn}
               className={`p-2 rounded-lg cursor-pointer ml-1 transition-colors ${
                 isThemeB
                   ? 'text-gray-400 hover:text-white hover:bg-[#333333]'
@@ -218,13 +240,15 @@ export const XmlOutputModal: React.FC<XmlOutputModalProps> = ({
                     isThemeB ? 'text-amber-100' : 'text-amber-900'
                   }`}
                 >
-                  <span>Flags Detected ({flags.length})</span>
+                  <span>
+                    {isDe ? `Erkannte Hinweise (${flags.length})` : `Flags Detected (${flags.length})`}
+                  </span>
                   <span
                     className={`text-[11px] font-normal ${
                       isThemeB ? 'text-amber-300/80' : 'text-amber-700'
                     }`}
                   >
-                    Review required before ERP transmission
+                    {isDe ? 'Prüfung vor ERP-Übertragung empfohlen' : 'Review required before ERP transmission'}
                   </span>
                 </div>
                 <ul
@@ -262,7 +286,7 @@ export const XmlOutputModal: React.FC<XmlOutputModalProps> = ({
                     isThemeB ? 'text-white' : 'text-gray-900'
                   }`}
                 >
-                  XML Source Code
+                  {isDe ? 'XML-Quellcode' : 'XML Source Code'}
                 </span>
                 <span
                   className={`text-[10px] font-sans ${
@@ -286,7 +310,7 @@ export const XmlOutputModal: React.FC<XmlOutputModalProps> = ({
                 ) : (
                   <Copy className="w-3.5 h-3.5" />
                 )}
-                <span>{copied ? 'Copied' : 'Copy'}</span>
+                <span>{copied ? (isDe ? 'Kopiert' : 'Copied') : (isDe ? 'Kopieren' : 'Copy')}</span>
               </button>
             </div>
 
@@ -305,3 +329,4 @@ export const XmlOutputModal: React.FC<XmlOutputModalProps> = ({
     </div>
   );
 };
+

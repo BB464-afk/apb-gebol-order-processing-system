@@ -27,6 +27,7 @@ import {
 import { INITIAL_CUSTOMERS, CustomerMasterRecord } from './CustomerMasterView';
 import { INITIAL_ARTICLES_DATASET, ArticleMasterRecord } from './ArticleMasterView';
 import { useToast } from '../context/ToastContext';
+import { useLanguage } from '../context/LanguageContext';
 import { generateGebolErpXml } from '../utils/xmlGenerator';
 import { formatDateToDDMMYYYY } from '../utils/dateUtils';
 
@@ -46,22 +47,27 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
   onNavigateToCustomerMaster,
 }) => {
   const toast = useToast();
+  const { language, dict } = useLanguage();
+  const isDe = language === 'de';
 
   // Working draft state for all editable order data
   const [draftPo, setDraftPo] = useState<PurchaseOrderRecord>(po);
+  const [hasAttemptedXml, setHasAttemptedXml] = useState<boolean>(false);
 
   // Synchronize draft state when the active PO prop changes
   useEffect(() => {
     setDraftPo(po);
+    setHasAttemptedXml(false);
     setAdditionalDetailsText(formatInitialAdditionalDetails(po));
   }, [po]);
 
-  // Track if user has made unsaved changes
-  const isDirty = useMemo(() => {
-    return JSON.stringify(draftPo) !== JSON.stringify(po);
-  }, [draftPo, po]);
+  // Direct state updater that updates both local state and parent state
+  const handleUpdateField = (updated: PurchaseOrderRecord) => {
+    setDraftPo(updated);
+    onUpdatePo(updated);
+  };
 
-  const isXmlGenerated = po.status === 'Completed' || (po.status as string) === 'XML Generated';
+  const isXmlGenerated = draftPo.status === 'Completed' || (draftPo.status as string) === 'XML Generated';
 
   // Document Viewer State & Dynamic Pagination
   const [docPage, setDocPage] = useState<number>(1);
@@ -71,16 +77,11 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
   // Line item search filter in section 3
   const [lineItemSearchTerm, setLineItemSearchTerm] = useState<string>('');
 
-  // Unsaved changes confirmation modal state
-  const [showUnsavedModal, setShowUnsavedModal] = useState<boolean>(false);
-  const [pendingNavAction, setPendingNavAction] = useState<(() => void) | null>(null);
-
   const itemsPerPage = 5;
   const totalDocPages = Math.max(1, Math.ceil(draftPo.lineItems.length / itemsPerPage));
   const currentDocPage = Math.min(docPage, totalDocPages);
   const orderNetTotal =
     draftPo.lineItems.reduce((sum, item) => sum + ((item.quantity || 0) * (item.unitPrice || 0)), 0) ||
-    draftPo.order.orderTotalAmount ||
     0;
 
   // Table display state
@@ -138,109 +139,72 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
   const [addItemQuantity, setAddItemQuantity] = useState<number>(0);
   const dateInputRef = useRef<HTMLInputElement>(null);
 
-  // Count unmapped positions in saved PO vs working draft
-  const unmappedLineCountSaved = po.lineItems.filter(
-    (item) => !item.skuMatched || item.gebolArticleNo === 'UNMAPPED-ARTICLE' || item.gebolArticleNo === 'UNMAPPED-SKU' || !item.gebolArticleNo
-  ).length;
-
   const unmappedLineCountDraft = draftPo.lineItems.filter(
-    (item) => !item.skuMatched || item.gebolArticleNo === 'UNMAPPED-ARTICLE' || item.gebolArticleNo === 'UNMAPPED-SKU' || !item.gebolArticleNo
+    (item) => !item.skuMatched || item.gebolArticleNo === 'UNMAPPED-ARTICLE' || item.gebolArticleNo === 'UNMAPPED-SKU' || !item.gebolArticleNo?.trim()
   ).length;
 
-  // Handle Save draft changes
-  const handleSaveChanges = () => {
-    const unmappedLeft = draftPo.lineItems.filter(
-      (item) => !item.skuMatched || item.gebolArticleNo === 'UNMAPPED-ARTICLE' || item.gebolArticleNo === 'UNMAPPED-SKU' || !item.gebolArticleNo
-    ).length;
+  const isFieldEmpty = (val: string | undefined | null) => !val || !val.trim();
 
-    const nextStatus =
-      draftPo.status === 'Completed' || draftPo.status === 'XML Generated'
-        ? draftPo.status
-        : unmappedLeft === 0
-        ? 'Ready for XML'
-        : 'Needs Review';
+  // Field validation flags
+  const isCompanyNameInvalid = hasAttemptedXml && isFieldEmpty(draftPo.buyer.companyName);
+  const isCustomerNumberInvalid = hasAttemptedXml && isFieldEmpty(draftPo.buyer.customerNumber);
+  const isGlnInvalid = hasAttemptedXml && isFieldEmpty(draftPo.buyer.gln);
+  const isDeliveryLocationInvalid = hasAttemptedXml && isFieldEmpty(draftPo.delivery.deliveryLocation);
+  const isDeliveryStreetInvalid =
+    hasAttemptedXml &&
+    isFieldEmpty(draftPo.delivery.deliveryAddress?.street) &&
+    isFieldEmpty(draftPo.delivery.deliveryLocation);
+  const isPoNumberInvalid = hasAttemptedXml && isFieldEmpty(draftPo.order.poNumber);
+  const isDeliveryDateInvalid = hasAttemptedXml && isFieldEmpty(draftPo.delivery.requestedDeliveryDate);
 
-    const updatedPo: PurchaseOrderRecord = {
-      ...draftPo,
-      status: nextStatus,
-      completenessScore: unmappedLeft === 0 ? 100 : Math.max(60, 100 - unmappedLeft * 15),
-      auditTrail: [
-        {
-          id: `at-${Date.now()}`,
-          timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
-          user: 'Operations Operator',
-          action: 'Manual Edit Saved',
-          details: `Saved modifications to order data. Status: ${nextStatus}.`,
-          category: 'ManualEdit',
-        },
-        ...draftPo.auditTrail,
-      ],
-    };
-
-    onUpdatePo(updatedPo);
-    setDraftPo(updatedPo);
-    toast.success('Changes Saved', 'All order data edits have been saved.');
-  };
-
-  // Handle Cancel draft changes
-  const handleCancelChanges = () => {
-    setDraftPo(po);
-    setAdditionalDetailsText(formatInitialAdditionalDetails(po));
-    toast.info('Changes Discarded', 'Reverted all unsaved modifications.');
-  };
-
-  // Safe Back Navigation with dirty check
-  const handleSafeBack = () => {
-    if (isDirty) {
-      setPendingNavAction(() => () => onBack?.());
-      setShowUnsavedModal(true);
-    } else {
-      onBack?.();
-    }
-  };
-
-  // Confirm Save & Exit from Modal
-  const handleModalSaveAndExit = () => {
-    handleSaveChanges();
-    setShowUnsavedModal(false);
-    if (pendingNavAction) {
-      pendingNavAction();
-      setPendingNavAction(null);
-    }
-  };
-
-  // Confirm Discard & Exit from Modal
-  const handleModalDiscardAndExit = () => {
-    setDraftPo(po);
-    setAdditionalDetailsText(formatInitialAdditionalDetails(po));
-    setShowUnsavedModal(false);
-    if (pendingNavAction) {
-      pendingNavAction();
-      setPendingNavAction(null);
-    }
-  };
-
-  // Generate and Download XML directly
+  // Generate and Download XML directly (Acts as Save & Download)
   const handleGenerateXml = () => {
-    if (po.status !== 'Ready for XML' && po.status !== 'Ready For XML' && !isXmlGenerated) {
-      toast.error('Cannot Generate XML', 'Order must be saved in status "Ready for XML" first.');
-      return;
-    }
+    // Perform full validation check
+    const hasInvalidBuyer =
+      isFieldEmpty(draftPo.buyer.companyName) ||
+      isFieldEmpty(draftPo.buyer.customerNumber) ||
+      isFieldEmpty(draftPo.buyer.gln);
 
-    const unmapped = po.lineItems.filter(
-      (item) => !item.skuMatched || item.gebolArticleNo === 'UNMAPPED-ARTICLE' || item.gebolArticleNo === 'UNMAPPED-SKU' || !item.gebolArticleNo
+    const hasInvalidDelivery =
+      (isFieldEmpty(draftPo.delivery.deliveryAddress?.street) && isFieldEmpty(draftPo.delivery.deliveryLocation)) ||
+      isFieldEmpty(draftPo.delivery.requestedDeliveryDate);
+
+    const hasInvalidOrder = isFieldEmpty(draftPo.order.poNumber);
+
+    const unmappedItems = draftPo.lineItems.filter(
+      (item) =>
+        !item.skuMatched ||
+        item.gebolArticleNo === 'UNMAPPED-ARTICLE' ||
+        item.gebolArticleNo === 'UNMAPPED-SKU' ||
+        !item.gebolArticleNo?.trim()
     );
-    if (unmapped.length > 0) {
-      toast.error('Cannot Generate XML', `There are ${unmapped.length} unmapped positions. Please resolve and save them first.`);
+
+    const invalidQtyItems = draftPo.lineItems.filter((item) => !item.quantity || item.quantity <= 0);
+
+    const hasErrors =
+      hasInvalidBuyer ||
+      hasInvalidDelivery ||
+      hasInvalidOrder ||
+      unmappedItems.length > 0 ||
+      invalidQtyItems.length > 0;
+
+    if (hasErrors) {
+      setHasAttemptedXml(true);
+      toast.error(
+        isDe ? 'Validierungsfehler' : 'Validation Error',
+        isDe
+          ? dict.orderDetail.validationMessages.validationErrorsDetected
+          : dict.orderDetail.validationMessages.validationErrorsDetected
+      );
       return;
     }
 
-    const rawOrderNo = po.order.poNumber || po.id;
+    const rawOrderNo = draftPo.order.poNumber || draftPo.id;
     const customerOrderNo = rawOrderNo.replace(/^#/, '');
     const ediFilename = `EDI_${customerOrderNo}.xml`;
 
     // 1. Generate XML Content
-    const xmlContent = generateGebolErpXml(po);
+    const xmlContent = generateGebolErpXml(draftPo);
 
     // 2. Direct XML File Download
     const blob = new Blob([xmlContent], { type: 'text/xml;charset=utf-8;' });
@@ -255,95 +219,60 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
 
     // 3. Update Order Status to XML Generated
     const updatedPo: PurchaseOrderRecord = {
-      ...po,
+      ...draftPo,
       status: 'XML Generated',
       completenessScore: 100,
-      exportedAt: new Date().toISOString().replace('T', ' ').substring(0, 16),
+      exportedAt: new Date().toISOString().replace('T', ' ').substring(0, 19),
       auditTrail: [
         {
           id: `at-${Date.now()}`,
           timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
-          user: 'GEBOL ERP Engine',
-          action: 'XML Generated & Downloaded',
-          details: `Generated and downloaded ${ediFilename} for PO ${customerOrderNo}.`,
+          user: 'Operations Operator',
+          action: 'XML Generated & Exported',
+          details: `Generated EDI XML (${ediFilename}) for ERP transmission.`,
           category: 'Export',
         },
-        ...po.auditTrail,
+        ...draftPo.auditTrail,
       ],
     };
 
-    onUpdatePo(updatedPo);
-    setDraftPo(updatedPo);
-    toast.success('XML Generated & Downloaded', `${ediFilename} downloaded successfully.`);
+    handleUpdateField(updatedPo);
+    toast.success(
+      isDe ? 'XML erfolgreich generiert' : 'XML Generated Successfully',
+      `${ediFilename} ${isDe ? 'wurde heruntergeladen.' : 'downloaded.'}`
+    );
   };
 
-  // Line Item Field Inline Change Handler (Updates draftPo)
-  const handleLineItemChange = (id: string, updatedFields: Partial<LineItem>) => {
+  // Direct line item field edit
+  const handleLineItemChange = (itemId: string, changes: Partial<LineItem>) => {
     const updatedItems = draftPo.lineItems.map((item) => {
-      if (item.id === id) {
-        const merged = { ...item, ...updatedFields };
-        merged.lineTotal = Number(((merged.quantity || 0) * (merged.unitPrice || 0)).toFixed(2));
-
-        // When GEBOL Art.Nr. is typed
-        if (updatedFields.gebolArticleNo !== undefined) {
-          const typedArt = updatedFields.gebolArticleNo.trim();
-          const matchedMaster = typedArt
-            ? INITIAL_ARTICLES_DATASET.find(
-                (a) => a.articleId.toLowerCase() === typedArt.toLowerCase()
-              )
-            : null;
-
-          if (matchedMaster) {
-            merged.gebolArticleNo = matchedMaster.articleId;
-            merged.eanBarcode = matchedMaster.ean;
-            if (!merged.description || merged.description === 'UNMAPPED-ARTICLE' || merged.description.startsWith('Logistikkosten')) {
-              merged.description = matchedMaster.description;
-            }
-            merged.skuMatched = true;
-          } else {
-            merged.skuMatched = false;
-          }
+      if (item.id === itemId) {
+        const next = { ...item, ...changes };
+        if (changes.gebolArticleNo && changes.gebolArticleNo !== 'UNMAPPED-ARTICLE' && changes.gebolArticleNo !== 'UNMAPPED-SKU') {
+          next.skuMatched = true;
         }
-
-        // When EAN / Barcode is typed
-        if (updatedFields.eanBarcode !== undefined) {
-          const typedEan = updatedFields.eanBarcode.trim();
-          const matchedMaster = typedEan
-            ? INITIAL_ARTICLES_DATASET.find((a) => a.ean === typedEan)
-            : null;
-
-          if (matchedMaster) {
-            merged.gebolArticleNo = matchedMaster.articleId;
-            merged.eanBarcode = matchedMaster.ean;
-            if (!merged.description || merged.description === 'UNMAPPED-ARTICLE') {
-              merged.description = matchedMaster.description;
-            }
-            merged.skuMatched = true;
-          } else {
-            const typedArt = (merged.gebolArticleNo || '').trim();
-            const matchedByArt = typedArt
-              ? INITIAL_ARTICLES_DATASET.find(
-                  (a) => a.articleId.toLowerCase() === typedArt.toLowerCase()
-                )
-              : null;
-            if (!matchedByArt) {
-              merged.skuMatched = false;
-            }
-          }
+        if (changes.quantity !== undefined || changes.unitPrice !== undefined) {
+          next.lineTotal = (next.quantity || 0) * (next.unitPrice || 0);
         }
-
-        return merged;
+        return next;
       }
       return item;
     });
 
-    setDraftPo({
+    const unmappedLeft = updatedItems.filter(
+      (item) => !item.skuMatched || item.gebolArticleNo === 'UNMAPPED-ARTICLE' || item.gebolArticleNo === 'UNMAPPED-SKU' || !item.gebolArticleNo
+    ).length;
+
+    const updatedPo = {
       ...draftPo,
       lineItems: updatedItems,
-    });
+      completenessScore: unmappedLeft === 0 ? 100 : Math.max(60, 100 - unmappedLeft * 15),
+    };
+
+    handleUpdateField(updatedPo);
   };
 
-  // Resolve specific article item from modal
+  // Assign article from Article Master Catalog
   const handleResolveArticleItem = (article: ArticleMasterRecord) => {
     if (!resolvingLineItemId) return;
 
@@ -352,102 +281,103 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
         return {
           ...item,
           gebolArticleNo: article.articleId,
-          eanBarcode: article.ean,
           description: article.description,
-          contractPrice: item.contractPrice || item.unitPrice,
-          unitPrice: item.unitPrice,
+          eanBarcode: article.ean || item.eanBarcode,
           skuMatched: true,
-          priceVariance: false,
         };
       }
       return item;
     });
 
-    setDraftPo({
+    const unmappedLeft = updatedItems.filter(
+      (item) => !item.skuMatched || item.gebolArticleNo === 'UNMAPPED-ARTICLE' || item.gebolArticleNo === 'UNMAPPED-SKU' || !item.gebolArticleNo
+    ).length;
+
+    const updatedPo: PurchaseOrderRecord = {
       ...draftPo,
       lineItems: updatedItems,
-    });
+      completenessScore: unmappedLeft === 0 ? 100 : Math.max(60, 100 - unmappedLeft * 15),
+    };
 
+    handleUpdateField(updatedPo);
     setResolvingLineItemId(null);
-    toast.success('Article Mapped', `Article ${article.articleId} selected. Click "Save" at bottom to apply.`);
+    setArticleSearchTerm('');
+    toast.success(
+      isDe ? 'Artikel zugeordnet' : 'Article Assigned',
+      `${article.articleId} ${isDe ? 'zugeordnet.' : 'assigned.'}`
+    );
   };
 
-  // Open Add Line Item Modal
+  // Add Item Position Modal Action
   const handleOpenAddItemModal = () => {
-    setAddItemSearchTerm('');
     setSelectedArticleForAdd(null);
-    setAddItemQuantity(0);
+    setAddItemQuantity(1);
+    setAddItemSearchTerm('');
     setIsAddItemModalOpen(true);
   };
 
-  // Confirm and Add Line Item from Article Master
   const handleConfirmAddItem = () => {
     if (!selectedArticleForAdd || addItemQuantity <= 0) {
-      toast.error('Quantity Required', 'Please select an article and specify a quantity greater than 0.');
+      toast.warning(
+        isDe ? 'Ungültige Auswahl' : 'Invalid Selection',
+        isDe ? 'Bitte wählen Sie einen Artikel und eine Menge aus.' : 'Please select an article and a positive quantity.'
+      );
       return;
     }
 
     const nextPos = (draftPo.lineItems.length + 1) * 10;
-    const qty = Math.max(1, addItemQuantity);
-    const price = 3.50;
-
     const newItem: LineItem = {
-      id: `li-new-${Date.now()}`,
+      id: `li-manual-${Date.now()}`,
       itemPos: nextPos,
-      eanBarcode: selectedArticleForAdd.ean,
       customerArticleNo: selectedArticleForAdd.articleId,
       gebolArticleNo: selectedArticleForAdd.articleId,
+      eanBarcode: selectedArticleForAdd.ean || '',
       description: selectedArticleForAdd.description,
-      quantity: qty,
-      unit: 'St',
-      unitPrice: price,
-      contractPrice: price,
+      quantity: addItemQuantity,
+      unit: 'Paa',
+      unitPrice: 4.50,
+      contractPrice: 4.50,
       taxRatePercentage: 19,
-      lineTotal: Number((qty * price).toFixed(2)),
+      lineTotal: addItemQuantity * 4.50,
       skuMatched: true,
       priceVariance: false,
     };
 
-    setDraftPo({
-      ...draftPo,
-      lineItems: [...draftPo.lineItems, newItem],
-    });
-
-    setIsAddItemModalOpen(false);
-    setSelectedArticleForAdd(null);
-    setAddItemQuantity(0);
-    toast.success('Item Added', `Item ${nextPos} (${selectedArticleForAdd.articleId}) added to draft.`);
-  };
-
-  // Delete Line Item
-  const handleDeleteLineItem = (id: string) => {
-    const updatedItems = draftPo.lineItems.filter((item) => item.id !== id);
-    setDraftPo({
+    const updatedItems = [...draftPo.lineItems, newItem];
+    const updatedPo: PurchaseOrderRecord = {
       ...draftPo,
       lineItems: updatedItems,
-    });
-    toast.info('Item Removed', 'Item removed from draft.');
+    };
+
+    handleUpdateField(updatedPo);
+    setIsAddItemModalOpen(false);
+    toast.success(
+      isDe ? 'Position hinzugefügt' : 'Position Added',
+      `${selectedArticleForAdd.articleId} (${addItemQuantity}x) ${isDe ? 'hinzugefügt.' : 'added.'}`
+    );
   };
 
-  // Filtered Articles for Mappings modal
-  const filteredArticles = INITIAL_ARTICLES_DATASET.filter((art) => {
-    const term = articleSearchTerm.toLowerCase();
-    return (
-      art.articleId.toLowerCase().includes(term) ||
-      art.description.toLowerCase().includes(term) ||
-      art.ean.toLowerCase().includes(term)
+  const filteredArticles = useMemo(() => {
+    const term = articleSearchTerm.toLowerCase().trim();
+    if (!term) return INITIAL_ARTICLES_DATASET;
+    return INITIAL_ARTICLES_DATASET.filter(
+      (a) =>
+        a.articleId.toLowerCase().includes(term) ||
+        a.description.toLowerCase().includes(term) ||
+        a.ean.toLowerCase().includes(term)
     );
-  });
+  }, [articleSearchTerm]);
 
-  // Filtered Articles for Add Item Position Modal
-  const filteredArticlesForAdd = INITIAL_ARTICLES_DATASET.filter((art) => {
-    const term = addItemSearchTerm.toLowerCase();
-    return (
-      art.articleId.toLowerCase().includes(term) ||
-      art.description.toLowerCase().includes(term) ||
-      art.ean.toLowerCase().includes(term)
+  const filteredArticlesForAdd = useMemo(() => {
+    const term = addItemSearchTerm.toLowerCase().trim();
+    if (!term) return INITIAL_ARTICLES_DATASET;
+    return INITIAL_ARTICLES_DATASET.filter(
+      (a) =>
+        a.articleId.toLowerCase().includes(term) ||
+        a.description.toLowerCase().includes(term) ||
+        a.ean.toLowerCase().includes(term)
     );
-  });
+  }, [addItemSearchTerm]);
 
   // Filtered Line Items in Section 3
   const filteredLineItems = useMemo(() => {
@@ -466,7 +396,6 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
     );
   }, [draftPo.lineItems, lineItemSearchTerm, showAllItems]);
 
-  // Reusable Section Header Formatter
   const renderSectionTitle = (title: string) => (
     <span className="font-bold tracking-tight text-[#4f4f4e] text-[15px]">
       {title}
@@ -474,7 +403,7 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
   );
 
   return (
-    <div className="space-y-3.5 font-sans text-gray-900 pb-20">
+    <div className="space-y-3.5 font-sans text-gray-900 pb-12">
       {/* 🔹 TOP TITLE & ACTION HEADER BAR */}
       <div className="flex flex-wrap items-center justify-between gap-4 py-0.5">
         <div>
@@ -488,25 +417,30 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
               <div className="flex items-center gap-2">
                 <span className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold px-2.5 py-0.5 rounded-md flex items-center gap-1">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                  XML Generated
+                  {dict.status.xmlGenerated}
                 </span>
               </div>
-            ) : po.status === 'Ready for XML' || po.status === 'Ready For XML' ? (
+            ) : draftPo.status === 'Processing' ? (
               <div className="flex items-center gap-2">
-                <span className="bg-indigo-50 border border-indigo-200 text-indigo-800 text-xs font-semibold px-2.5 py-0.5 rounded-md flex items-center gap-1">
-                  <CheckCircle className="w-3.5 h-3.5 text-indigo-600" />
-                  Ready for XML
+                <span className="bg-blue-50 border border-blue-200 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded-md">
+                  {dict.status.processing}
+                </span>
+              </div>
+            ) : draftPo.status === 'Failed' ? (
+              <div className="flex items-center gap-2">
+                <span className="bg-red-50 border border-red-200 text-red-800 text-xs font-semibold px-2.5 py-0.5 rounded-md">
+                  {dict.status.failed}
                 </span>
               </div>
             ) : (
               <div className="flex items-center gap-2">
                 <span className="bg-[#FEF6EE] border border-[#F9DBAF] text-[#B54708] text-xs font-semibold px-2.5 py-0.5 rounded-md">
-                  Needs Review
+                  {dict.status.needsReview}
                 </span>
-                {unmappedLineCountSaved > 0 && (
+                {unmappedLineCountDraft > 0 && (
                   <span className="flex items-center gap-1.5 text-xs text-[#B54708] font-medium">
                     <span className="w-1.5 h-1.5 rounded-full bg-[#F79009] inline-block" />
-                    {unmappedLineCountSaved} {unmappedLineCountSaved === 1 ? 'issue pending' : 'issues pending'}
+                    {unmappedLineCountDraft} {unmappedLineCountDraft === 1 ? (isDe ? 'offene Position' : 'issue pending') : (isDe ? 'offene Positionen' : 'issues pending')}
                   </span>
                 )}
               </div>
@@ -514,59 +448,47 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
           </div>
 
           <p className="text-[15px] text-[#8f9494] mt-0.5 font-light">
-            Review purchase order details, verify line items, and generate ERP XML.
+            {isDe
+              ? 'Prüfen Sie Bestelldaten, verifizieren Sie Positionen und generieren Sie ERP-XML.'
+              : 'Review purchase order details, verify line items, and generate ERP XML.'}
           </p>
         </div>
 
-        {/* Right: Action Buttons (Generate XML) */}
+        {/* Right: Action Buttons (Generate XML - Always Enabled) */}
         <div className="flex items-center gap-2">
-          {/* Generate XML Button (Directly Generates & Downloads XML) */}
           <button
             type="button"
-            disabled={po.status !== 'Ready for XML' && po.status !== 'Ready For XML' && !isXmlGenerated}
             onClick={handleGenerateXml}
             title={
-              po.status === 'Ready for XML' || po.status === 'Ready For XML'
-                ? 'Generate and download ERP XML'
-                : isXmlGenerated
-                ? 'Re-download ERP XML'
-                : 'Order status must be saved as "Ready for XML" to generate XML (resolve issues first)'
+              isXmlGenerated
+                ? (isDe ? 'ERP-XML erneut herunterladen' : 'Re-download ERP XML')
+                : (isDe ? 'ERP-XML generieren und herunterladen' : 'Generate and download ERP XML')
             }
-            className={`font-semibold px-3.5 py-1.5 rounded text-xs flex items-center gap-1.5 transition-all shadow-xs ${
-              po.status === 'Ready for XML' || po.status === 'Ready For XML' || isXmlGenerated
-                ? 'bg-[#f7b611] hover:bg-[#e2a508] text-white cursor-pointer'
-                : 'bg-gray-100 border border-gray-200 text-gray-400 cursor-not-allowed select-none'
-            }`}
+            className="bg-[#f7b611] hover:bg-[#e2a508] text-white font-semibold px-3.5 py-1.5 rounded text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
           >
-            <FileCode className={`w-3.5 h-3.5 ${po.status === 'Ready for XML' || po.status === 'Ready For XML' || isXmlGenerated ? 'text-white' : 'text-gray-400'}`} />
-            <span className={po.status === 'Ready for XML' || po.status === 'Ready For XML' || isXmlGenerated ? 'text-white' : 'text-gray-400'}>
-              {isXmlGenerated ? 'Download XML' : 'Generate XML'}
+            <FileCode className="w-3.5 h-3.5 text-white" />
+            <span className="text-white font-semibold">
+              {isXmlGenerated ? (isDe ? 'XML herunterladen' : 'Download XML') : dict.orderDetail.generateXmlBtn}
             </span>
           </button>
         </div>
       </div>
 
-      {/* ========================================================================= */}
-      {/* 🔹 WORKSPACE: SPLIT SCREEN (IF DOC VISIBLE) OR SINGLE FRAME (IF COLLAPSED) */}
-      {/* ========================================================================= */}
+      {/* 🔹 SPLIT SCREEN (IF DOC VISIBLE) OR SINGLE FRAME (IF COLLAPSED) */}
       <div className={isDocCollapsed ? "w-full space-y-4" : "grid grid-cols-1 lg:grid-cols-12 gap-5 items-start"}>
         
-        {/* ========================================================================= */}
-        {/* LEFT COLUMN: SOURCE DOCUMENT (PDF)                                        */}
-        {/* ========================================================================= */}
+        {/* LEFT COLUMN: SOURCE DOCUMENT (PDF) */}
         {!isDocCollapsed ? (
           <div className="lg:col-span-5 lg:sticky lg:top-4 self-start space-y-4">
-            
-            {/* 📄 SOURCE DOCUMENT (PDF) CARD */}
             <div data-pdf-view="true" className="original-pdf-viewer bg-white rounded-xl border border-gray-200 shadow-2xs overflow-hidden flex flex-col">
-              {/* Header with Document Name & Collapse Icon near file name */}
+              {/* Header with Document Name & Collapse Icon */}
               <div className="p-3 border-b border-gray-200 flex items-center justify-between gap-2 bg-gray-50/50">
                 <div className="flex items-center gap-1.5 min-w-0">
                   <button
                     type="button"
                     onClick={() => setIsDocCollapsed(true)}
                     className="p-1 hover:bg-gray-200 rounded text-gray-600 hover:text-gray-900 transition-colors cursor-pointer"
-                    title="Collapse document"
+                    title={isDe ? 'Dokument einklappen' : 'Collapse document'}
                   >
                     <ChevronLeft className="w-4 h-4" />
                   </button>
@@ -598,336 +520,256 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
                 </div>
               </div>
 
-              {/* Document Toolbar: Zoom Controls */}
-              <div className="bg-gray-50/70 px-3 py-1.5 border-b border-gray-200 flex items-center justify-between gap-2">
-                <div className="text-xs font-semibold text-gray-600 flex items-center gap-1.5">
-                  <span>Page {currentDocPage} of {totalDocPages}</span>
-                </div>
+              {/* Document Visual Body - Clean full width container */}
+              <div className="p-2 sm:p-3 bg-gray-100/70 flex flex-col items-stretch justify-start min-h-[500px] overflow-auto">
+                <div
+                  style={{ transform: `scale(${docZoom / 100})`, transformOrigin: 'top center' }}
+                  className="w-full bg-white p-4 rounded-lg border border-gray-300 shadow-2xs text-gray-800 text-[11px] font-sans space-y-3 select-none"
+                >
+                  <div className="flex justify-between items-start border-b border-gray-200 pb-2">
+                    <div>
+                      <div className="font-bold text-xs text-gray-900">{draftPo.buyer.companyName || 'BAUKING Ostfalen GmbH'}</div>
+                      <div className="text-[10px] text-gray-500">Magdeburger Berg 3, 38350 Helmstedt</div>
+                    </div>
+                    <span className="text-[10px] font-mono text-gray-400">PAGE {currentDocPage} / {totalDocPages}</span>
+                  </div>
 
-                {/* Zoom Controls */}
-                <div className="flex items-center border border-gray-200 rounded-lg bg-white overflow-hidden text-xs text-gray-700 shadow-2xs">
-                  <button
-                    onClick={() => setDocZoom(Math.max(75, docZoom - 10))}
-                    className="p-1 hover:bg-gray-50 cursor-pointer"
-                    title="Zoom Out"
-                  >
-                    <Minus className="w-3 h-3" />
-                  </button>
-                  <span className="px-1.5 py-0.5 font-mono text-[10px] font-medium border-x border-gray-200">
-                    {docZoom}%
-                  </span>
-                  <button
-                    onClick={() => setDocZoom(Math.min(140, docZoom + 10))}
-                    className="p-1 hover:bg-gray-50 cursor-pointer"
-                    title="Zoom In"
-                  >
-                    <Plus className="w-3 h-3" />
-                  </button>
+                  <div className="grid grid-cols-2 gap-2 text-[10.5px]">
+                    <div>
+                      <span className="text-gray-400 block text-[9.5px]">BESTELLUNG / PO</span>
+                      <strong className="text-gray-900 font-mono text-[11px]">{draftPo.order.poNumber || '80635109'}</strong>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 block text-[9.5px]">DATUM</span>
+                      <span className="text-gray-700 font-mono">{draftPo.order.poDate || '2026-07-08'}</span>
+                    </div>
+                  </div>
+
+                  <div className="border border-gray-100 bg-gray-50/70 p-2 rounded text-[10px] space-y-1">
+                    <div className="text-gray-500 font-medium">Lieferanschrift:</div>
+                    <div className="font-semibold text-gray-800">{draftPo.delivery.recipientName || 'FH Oschersleben'}</div>
+                    <div className="text-gray-600">Schermcker Str. 17, 39387 Oschersleben</div>
+                  </div>
+
+                  {/* Line Items Preview */}
+                  <div className="border-t border-gray-200 pt-2">
+                    <table className="w-full text-left text-[10px]">
+                      <thead>
+                        <tr className="border-b border-gray-200 text-gray-500 text-[9px]">
+                          <th className="py-1">Pos</th>
+                          <th className="py-1">Art.Nr</th>
+                          <th className="py-1">Menge</th>
+                          <th className="py-1 text-right">Betrag</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {draftPo.lineItems.slice((currentDocPage - 1) * itemsPerPage, currentDocPage * itemsPerPage).map((it) => (
+                          <tr key={it.id}>
+                            <td className="py-1 font-mono">{it.itemPos}</td>
+                            <td className="py-1 font-mono">{it.customerArticleNo || it.gebolArticleNo}</td>
+                            <td className="py-1">{it.quantity} {it.unit}</td>
+                            <td className="py-1 text-right font-mono">€{(it.lineTotal || 0).toFixed(2)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
 
-              {/* PDF Page Canvas */}
-              <div className="p-3 bg-gray-100/70 overflow-auto max-h-[660px] flex justify-center">
-                <div
-                  style={{ transform: `scale(${docZoom / 100})`, transformOrigin: 'top center' }}
-                  className="pdf-document-page bg-white border border-gray-300 shadow-md p-4 sm:p-5 rounded text-[10px] text-gray-800 w-full max-w-[500px] min-h-[580px] font-sans transition-transform overflow-hidden box-border"
-                >
-                  {/* Header Zone: Buyer & Order Header */}
-                  <div className="flex justify-between items-start border-b border-gray-200 pb-3 mb-3 gap-2">
-                    <div className="flex-1 pr-1 min-w-0">
-                      <div className="font-bold text-xs uppercase truncate text-gray-900">
-                        {draftPo.buyer.companyName || 'BAUKING Ostfalen GmbH'}
-                      </div>
-                      <div className="text-[8.5px] text-gray-500 mt-0.5 leading-tight">
-                        <div className="truncate">{draftPo.buyer.billingAddress?.street || 'Magdeburger Berg 3'}</div>
-                        <div className="truncate">
-                          {draftPo.buyer.billingAddress?.postalCode || '38350'} {draftPo.buyer.billingAddress?.city || 'Helmstedt'}
-                          {draftPo.buyer.billingAddress?.country ? `, ${draftPo.buyer.billingAddress.country}` : ', Germany'}
-                        </div>
-                      </div>
-                      <div className="text-[8px] font-mono text-gray-500 mt-0.5 truncate">
-                        USt-IdNr: <span className="font-semibold text-gray-800">{draftPo.buyer.vatId || 'DE296746712'}</span>
-                      </div>
-                    </div>
-
-                    <div className="text-right shrink-0">
-                      <div className="font-bold text-xs text-gray-900">BESTELLUNG</div>
-                      <div className="font-mono text-[11px] font-bold text-gray-800">
-                        Nr. {(draftPo.order.poNumber || draftPo.id).replace(/^#/, '')}
-                      </div>
-                      <div className="text-[8.5px] text-gray-500 mt-0.5">
-                        Datum: <span className="font-mono text-gray-800 font-medium">{formatDateToDDMMYYYY(draftPo.order.poDate)}</span>
-                      </div>
-                      <div className="text-[8.5px] text-gray-400 font-mono mt-0.5">
-                        Seite {currentDocPage}/{totalDocPages}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Delivery & Supplier Info */}
-                  <div className="grid grid-cols-2 gap-2 mb-3 text-[8.5px] bg-gray-50 p-2 rounded border border-gray-200">
-                    <div className="min-w-0">
-                      <div className="font-bold text-gray-600 uppercase text-[7.5px] mb-0.5">Lieferadresse:</div>
-                      <div className="font-semibold text-gray-900 truncate">
-                        {draftPo.delivery.recipientName || draftPo.delivery.deliveryLocation || draftPo.buyer.companyName}
-                      </div>
-                      <div className="text-gray-600 truncate">
-                        {draftPo.delivery.deliveryAddress?.street || draftPo.delivery.deliveryLocation || 'Schermcker Str. 17'}
-                      </div>
-                      <div className="truncate text-gray-600">
-                        {draftPo.delivery.deliveryAddress?.postalCode || '39387'} {draftPo.delivery.deliveryAddress?.city || 'Oschersleben'}
-                        {draftPo.delivery.deliveryAddress?.country ? `, ${draftPo.delivery.deliveryAddress?.country}` : ', Germany'}
-                      </div>
-                      <div className="mt-0.5 font-mono truncate text-gray-700">
-                        Liefertermin: <strong>{formatDateToDDMMYYYY(draftPo.delivery.requestedDeliveryDate || draftPo.order.poDate)}</strong>
-                      </div>
-                      <div className="text-[7.5px] text-gray-500 mt-0.5 truncate">
-                        Abladestelle: <span className="font-medium text-gray-700">{draftPo.delivery.unloadingPoint || draftPo.delivery.deliveryLocation || 'FH Oschersleben'}</span>
-                      </div>
-                    </div>
-
-                    <div className="min-w-0">
-                      <div className="font-bold text-gray-600 uppercase text-[7.5px] mb-0.5">Lieferant:</div>
-                      <div className="font-semibold text-gray-900 truncate">Gebol GmbH</div>
-                      <div className="text-gray-600 truncate">Dr. Körner Str. 4</div>
-                      <div className="text-gray-600 truncate">A-4470 Enns</div>
-                      <div className="mt-1 inline-block text-[7.5px] font-mono text-emerald-800 bg-emerald-50 px-1 py-0.5 rounded border border-emerald-200 max-w-full truncate">
-                        CLV: <span className="underline font-bold">{draftPo.buyer.gln || draftPo.buyer.customerNumber || '109008'}</span>
-                      </div>
-                      <div className="mt-0.5 text-[7.5px] text-gray-600 truncate">
-                        Kd-Nr: <span className="font-mono font-medium text-gray-900">{draftPo.buyer.customerNumber || '148510'}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Document Items Table */}
-                  <div className="w-full overflow-hidden">
-                    <table className="pdf-doc-table w-full text-left text-[8.5px] border-collapse table-fixed">
-                      <thead>
-                        <tr className="border-b border-gray-300 text-gray-600 font-bold">
-                          <th className="py-1 px-1 w-[32px] text-left font-bold">Pos.</th>
-                          <th className="py-1 px-1 w-[52px] text-left font-bold">Menge</th>
-                          <th className="py-1 px-1 text-left font-bold">Artikelbezeichnung</th>
-                          <th className="py-1 px-1 text-right w-[54px] font-bold">E-Preis</th>
-                          <th className="py-1 px-1 text-right w-[58px] font-bold">Gesamt</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-200 text-gray-800">
-                        {draftPo.lineItems.slice((currentDocPage - 1) * itemsPerPage, currentDocPage * itemsPerPage).map((li, idx) => {
-                          const lineTotal = Number(((li.quantity || 0) * (li.unitPrice || 0)).toFixed(2));
-                          const posNumber = li.itemPos || ((currentDocPage - 1) * itemsPerPage + idx + 1) * 10;
-                          return (
-                            <tr key={li.id} className="hover:bg-gray-50 transition-colors">
-                              <td className="p-1 font-mono align-top">{posNumber}</td>
-                              <td className="p-1 font-mono align-top whitespace-nowrap overflow-hidden">
-                                {li.quantity} {li.unit || 'St'}
-                              </td>
-                              <td className="p-1 align-top min-w-0 overflow-hidden">
-                                <div className="font-medium leading-snug line-clamp-2 break-words text-gray-900">
-                                  {li.description}
-                                </div>
-                                <div className="text-[7.5px] font-mono mt-0.5 break-all text-gray-500">
-                                  Art: {li.customerArticleNo || li.gebolArticleNo || '—'} {li.eanBarcode ? `/ EAN: ${li.eanBarcode}` : ''}
-                                </div>
-                              </td>
-                              <td className="p-1 text-right font-mono align-top whitespace-nowrap overflow-hidden">
-                                € {li.unitPrice.toFixed(2)}
-                              </td>
-                              <td className="p-1 text-right font-mono align-top whitespace-nowrap overflow-hidden">
-                                € {lineTotal.toFixed(2)}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-
-                    {/* Pagination Continuation Note or Totals */}
-                    {currentDocPage < totalDocPages ? (
-                      <div className="text-right text-[7.5px] text-gray-500 italic mt-2.5">
-                        ... Fortsetzung auf Seite {currentDocPage + 1} ({draftPo.lineItems.length - (currentDocPage * itemsPerPage)} weitere Positionen)
-                      </div>
-                    ) : (
-                      <div className="mt-2.5 pt-2 border-t border-gray-300 flex justify-between items-start text-[8.5px] gap-2">
-                        <div className="min-w-0 flex-1">
-                          <div className="text-gray-600 font-medium truncate">
-                            Zahlungsbedingungen: <span className="font-mono text-gray-800 font-normal">{draftPo.order.paymentTerms || '30 Tage Netto'}</span>
-                          </div>
-                          <div className="text-gray-600 font-medium truncate">
-                            Lieferbedingungen: <span className="font-mono text-gray-800 font-normal">{draftPo.order.incoterms || 'DDP'}</span>
-                          </div>
-                        </div>
-                        <div className="text-right space-y-0.5 shrink-0">
-                          <div className="text-gray-600">
-                            Nettowert: <span className="font-mono font-medium text-gray-900">€ {orderNetTotal.toFixed(2)}</span>
-                          </div>
-                          <div className="text-gray-600">
-                            MwSt (19%): <span className="font-mono font-medium text-gray-900">€ {(orderNetTotal * 0.19).toFixed(2)}</span>
-                          </div>
-                          <div className="font-bold text-gray-900 border-t border-gray-200 pt-0.5">
-                            Gesamt: <span className="font-mono text-gray-900">€ {(orderNetTotal * 1.19).toFixed(2)}</span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+              {/* Bottom Document Toolbar */}
+              <div className="p-2 border-t border-gray-200 flex items-center justify-between text-xs bg-white">
+                <span className="text-gray-500 text-[11px] pl-1 font-mono">PDF Preview 100%</span>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setDocZoom(Math.max(70, docZoom - 10))}
+                    className="p-1 hover:bg-gray-100 rounded text-gray-600"
+                    title={dict.orderDetail.zoomOut}
+                  >
+                    <Minus className="w-3.5 h-3.5" />
+                  </button>
+                  <span className="text-[11px] font-mono text-gray-600 px-1">{docZoom}%</span>
+                  <button
+                    type="button"
+                    onClick={() => setDocZoom(Math.min(150, docZoom + 10))}
+                    className="p-1 hover:bg-gray-100 rounded text-gray-600"
+                    title={dict.orderDetail.zoomIn}
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
             </div>
           </div>
-        ) : (
-          /* When collapsed: render top button to restore document */
-          <div className="w-full">
-            <button
-              type="button"
-              onClick={() => setIsDocCollapsed(false)}
-              className="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 font-semibold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1.5 shadow-2xs cursor-pointer transition-colors"
-              title="Show Original Document"
-            >
-              <FileText className="w-3.5 h-3.5 text-gray-500" />
-              <span>Show Document: {po.sourceFileName || 'Purchase Order Document.pdf'}</span>
-              <ChevronRight className="w-3.5 h-3.5 text-gray-400 ml-1" />
-            </button>
-          </div>
-        )}
+        ) : null}
 
-        {/* ========================================================================= */}
-        {/* RIGHT COLUMN: 1. CUSTOMER & DELIVERY, 2. ORDER INFO, 3. LINE ITEMS,       */}
-        {/*               4. ADDITIONAL INFORMATION (EXPANDED TO FULL SPACE)          */}
-        {/* ========================================================================= */}
+        {/* RIGHT COLUMN (OR FULL WIDTH): EDITABLE BUSINESS OBJECTS */}
         <div className={isDocCollapsed ? "w-full space-y-4" : "lg:col-span-7 space-y-4"}>
           
+          {/* Collapse Bar toggle if collapsed */}
+          {isDocCollapsed && (
+            <div className="flex items-center justify-between p-2.5 bg-white border border-gray-200 rounded-lg shadow-2xs">
+              <div className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-gray-500" />
+                <span className="text-xs font-bold text-gray-800">
+                  {po.sourceFileName || 'Purchase Order Document.pdf'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsDocCollapsed(false)}
+                className="text-xs font-semibold text-[#ED6C02] hover:underline flex items-center gap-1 cursor-pointer"
+              >
+                <span>{dict.orderDetail.docPreview}</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
           {/* 👤 1. CUSTOMER & DELIVERY */}
           <div className="bg-white rounded-xl border border-gray-200 shadow-2xs overflow-hidden">
             <div className="px-4 py-3 border-b flex items-center justify-between bg-gray-50/75 border-gray-200">
               <div className="flex items-center gap-2">
-                {renderSectionTitle('1. Customer & Delivery')}
+                {renderSectionTitle(isDe ? '1. Kunde & Lieferung' : '1. Customer & Delivery')}
               </div>
               <button
                 type="button"
                 onClick={() => setIsCustomerModalOpen(true)}
                 className="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 font-semibold px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 cursor-pointer shadow-2xs transition-colors"
-                title="Lookup customer from Customer Master"
+                title={isDe ? 'Kundenstamm durchsuchen' : 'Lookup customer from Customer Master'}
               >
                 <Building2 className="w-3.5 h-3.5 text-blue-600" />
-                <span>Customer Lookup</span>
+                <span>{isDe ? 'Kundenstamm-Suche' : 'Customer Lookup'}</span>
               </button>
             </div>
 
             <div className="p-4 space-y-3.5">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                {/* Customer Name * */}
+                {/* Customer Name */}
                 <div>
                   <label className="block text-[13px] font-light text-[#8f9494] mb-1.5 field-header">
-                    Customer Name <span className="text-red-500 font-bold">*</span>
+                    {dict.orderDetail.fields.companyName} <span className="text-red-500 font-bold">*</span>
                   </label>
                   <div className="relative">
                     <input
                       type="text"
                       value={draftPo.buyer.companyName || ''}
-                      onChange={(e) => setDraftPo({ ...draftPo, buyer: { ...draftPo.buyer, companyName: e.target.value } })}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                      }}
+                      onChange={(e) => handleUpdateField({ ...draftPo, buyer: { ...draftPo.buyer, companyName: e.target.value } })}
                       className={`w-full pl-3 pr-8 py-2 rounded-lg text-[13px] font-normal transition-colors focus:outline-none ${
-                        !isXmlGenerated && !draftPo.buyer.companyName?.trim()
-                          ? 'bg-red-50/40 border border-red-400 text-red-700 focus:border-red-500 focus:ring-1 focus:ring-red-400'
+                        isCompanyNameInvalid
+                          ? 'bg-red-50/20 border border-red-500 text-red-950 focus:ring-1 focus:ring-red-500'
                           : 'bg-white border border-gray-200 text-[#4f4f4e] focus:border-gray-400 focus:ring-1 focus:ring-[#F8B800]'
                       }`}
                     />
-                    {draftPo.buyer.companyName?.trim() || isXmlGenerated ? (
+                    {isCompanyNameInvalid ? (
+                      <AlertCircle className="w-4 h-4 text-red-500 absolute right-2.5 top-2.5" />
+                    ) : draftPo.buyer.companyName?.trim() ? (
                       <Check className="w-4 h-4 text-emerald-600 absolute right-2.5 top-2.5" />
-                    ) : (
-                      <AlertTriangle className="w-4 h-4 text-red-500 absolute right-2.5 top-2.5" />
-                    )}
+                    ) : null}
                   </div>
+                  {isCompanyNameInvalid && (
+                    <p className="text-red-600 text-[11px] font-medium mt-1 flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      {dict.orderDetail.validationMessages.companyNameRequired}
+                    </p>
+                  )}
                 </div>
 
-                {/* GP Nr. (Customer Account) * */}
+                {/* Customer Number (GP Nr) */}
                 <div>
                   <label className="block text-[13px] font-light text-[#8f9494] mb-1.5 field-header">
-                    GP Nr. (Customer Account) <span className="text-red-500 font-bold">*</span>
+                    {dict.orderDetail.fields.customerNumber} <span className="text-red-500 font-bold">*</span>
                   </label>
                   <div className="relative">
                     <input
                       type="text"
                       value={draftPo.buyer.customerNumber || ''}
-                      onChange={(e) => setDraftPo({ ...draftPo, buyer: { ...draftPo.buyer, customerNumber: e.target.value } })}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                      }}
+                      onChange={(e) => handleUpdateField({ ...draftPo, buyer: { ...draftPo.buyer, customerNumber: e.target.value } })}
                       className={`w-full pl-3 pr-8 py-2 rounded-lg text-[13px] font-normal transition-colors focus:outline-none ${
-                        !isXmlGenerated && !draftPo.buyer.customerNumber?.trim()
-                          ? 'bg-red-50/40 border border-red-400 text-red-700 focus:border-red-500 focus:ring-1 focus:ring-red-400'
+                        isCustomerNumberInvalid
+                          ? 'bg-red-50/20 border border-red-500 text-red-950 focus:ring-1 focus:ring-red-500'
                           : 'bg-white border border-gray-200 text-[#4f4f4e] focus:border-gray-400 focus:ring-1 focus:ring-[#F8B800]'
                       }`}
                     />
-                    {draftPo.buyer.customerNumber?.trim() || isXmlGenerated ? (
+                    {isCustomerNumberInvalid ? (
+                      <AlertCircle className="w-4 h-4 text-red-500 absolute right-2.5 top-2.5" />
+                    ) : draftPo.buyer.customerNumber?.trim() ? (
                       <Check className="w-4 h-4 text-emerald-600 absolute right-2.5 top-2.5" />
-                    ) : (
-                      <AlertTriangle className="w-4 h-4 text-red-500 absolute right-2.5 top-2.5" />
-                    )}
+                    ) : null}
                   </div>
+                  {isCustomerNumberInvalid && (
+                    <p className="text-red-600 text-[11px] font-medium mt-1 flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      {dict.orderDetail.validationMessages.customerNumberRequired}
+                    </p>
+                  )}
                 </div>
 
-                {/* Customer GLN / ILN * */}
+                {/* Customer GLN / ILN */}
                 <div>
                   <label className="block text-[13px] font-light text-[#8f9494] mb-1.5 field-header">
-                    Customer GLN / ILN <span className="text-red-500 font-bold">*</span>
+                    {dict.orderDetail.fields.gln} <span className="text-red-500 font-bold">*</span>
                   </label>
-                  <div className={`relative flex items-center bg-white rounded-lg px-3 py-1.5 transition-colors ${
-                    !isXmlGenerated && !draftPo.buyer.gln?.trim()
-                      ? 'border border-red-400 bg-red-50/30'
-                      : 'border border-gray-200 focus-within:border-gray-400 focus-within:ring-1 focus-within:ring-[#F8B800]'
+                  <div className={`relative flex items-center rounded-lg px-3 py-1.5 ${
+                    isGlnInvalid
+                      ? 'bg-red-50/20 border border-red-500 focus-within:ring-1 focus-within:ring-red-500'
+                      : 'bg-white border border-gray-200 focus-within:border-gray-400 focus-within:ring-1 focus-within:ring-[#F8B800]'
                   }`}>
                     <input
                       type="text"
                       value={draftPo.buyer.gln || ''}
-                      onChange={(e) => setDraftPo({ ...draftPo, buyer: { ...draftPo.buyer, gln: e.target.value } })}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                      }}
+                      onChange={(e) => handleUpdateField({ ...draftPo, buyer: { ...draftPo.buyer, gln: e.target.value } })}
                       className="flex-1 bg-transparent text-[13px] font-normal text-[#4f4f4e] focus:outline-none min-w-0"
                     />
-                    {draftPo.buyer.gln?.trim() || isXmlGenerated ? (
+                    {isGlnInvalid ? (
+                      <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
+                    ) : draftPo.buyer.gln?.trim() ? (
                       <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-                    ) : (
-                      <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
-                    )}
+                    ) : null}
                   </div>
+                  {isGlnInvalid && (
+                    <p className="text-red-600 text-[11px] font-medium mt-1 flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      {dict.orderDetail.validationMessages.glnRequired}
+                    </p>
+                  )}
                 </div>
 
-                {/* Delivery Location / Site * */}
+                {/* Delivery Location / Site */}
                 <div>
                   <label className="block text-[13px] font-light text-[#8f9494] mb-1.5 field-header">
-                    Delivery Location / Site <span className="text-red-500 font-bold">*</span>
+                    {dict.orderDetail.fields.deliveryLocation} <span className="text-red-500 font-bold">*</span>
                   </label>
                   <div className="relative">
                     <input
                       type="text"
                       value={draftPo.delivery.deliveryLocation || ''}
-                      onChange={(e) => setDraftPo({ ...draftPo, delivery: { ...draftPo.delivery, deliveryLocation: e.target.value } })}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                      }}
+                      onChange={(e) => handleUpdateField({ ...draftPo, delivery: { ...draftPo.delivery, deliveryLocation: e.target.value } })}
                       className={`w-full pl-3 pr-8 py-2 rounded-lg text-[13px] font-normal transition-colors focus:outline-none ${
-                        !isXmlGenerated && !draftPo.delivery.deliveryLocation?.trim()
-                          ? 'bg-red-50/40 border border-red-400 text-red-700 focus:border-red-500 focus:ring-1 focus:ring-red-400'
+                        isDeliveryLocationInvalid
+                          ? 'bg-red-50/20 border border-red-500 text-red-950 focus:ring-1 focus:ring-red-500'
                           : 'bg-white border border-gray-200 text-[#4f4f4e] focus:border-gray-400 focus:ring-1 focus:ring-[#F8B800]'
                       }`}
                     />
-                    {draftPo.delivery.deliveryLocation?.trim() || isXmlGenerated ? (
+                    {isDeliveryLocationInvalid ? (
+                      <AlertCircle className="w-4 h-4 text-red-500 absolute right-2.5 top-2.5" />
+                    ) : draftPo.delivery.deliveryLocation?.trim() ? (
                       <Check className="w-4 h-4 text-emerald-600 absolute right-2.5 top-2.5" />
-                    ) : (
-                      <AlertTriangle className="w-4 h-4 text-red-500 absolute right-2.5 top-2.5" />
-                    )}
+                    ) : null}
                   </div>
+                  {isDeliveryLocationInvalid && (
+                    <p className="text-red-600 text-[11px] font-medium mt-1 flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      {dict.orderDetail.validationMessages.deliveryLocationRequired}
+                    </p>
+                  )}
                 </div>
 
-                {/* Delivery Address * (Editable) */}
+                {/* Delivery Address */}
                 <div>
                   <label className="block text-[13px] font-light text-[#8f9494] mb-1.5 field-header">
-                    Delivery Address <span className="text-red-500 font-bold">*</span>
+                    {dict.orderDetail.fields.streetAddress} <span className="text-red-500 font-bold">*</span>
                   </label>
                   <div className="relative">
                     <input
@@ -939,11 +781,11 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
                                 ? `, ${draftPo.delivery.deliveryAddress.postalCode || ''} ${draftPo.delivery.deliveryAddress.city || ''}`
                                 : ''
                             }${draftPo.delivery.deliveryAddress.country ? `, ${draftPo.delivery.deliveryAddress.country}` : ''}`
-                          : (draftPo.delivery.deliveryLocation || 'Schermcker Str. 17, 39387 Oschersleben, Germany')
+                          : (draftPo.delivery.deliveryLocation || '')
                       }
                       onChange={(e) => {
                         const val = e.target.value;
-                        setDraftPo({
+                        handleUpdateField({
                           ...draftPo,
                           delivery: {
                             ...draftPo.delivery,
@@ -954,28 +796,35 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
                           },
                         });
                       }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                      }}
-                      className="w-full pl-3 pr-8 py-2 bg-white border border-gray-200 rounded-lg text-[13px] font-normal text-[#4f4f4e] focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-[#F8B800]"
-                      placeholder="Street, Postal Code City, Country"
+                      className={`w-full pl-3 pr-8 py-2 rounded-lg text-[13px] font-normal focus:outline-none ${
+                        isDeliveryStreetInvalid
+                          ? 'bg-red-50/20 border border-red-500 text-red-950 focus:ring-1 focus:ring-red-500'
+                          : 'bg-white border border-gray-200 text-[#4f4f4e] focus:border-gray-400 focus:ring-1 focus:ring-[#F8B800]'
+                      }`}
                     />
-                    <Check className="w-4 h-4 text-emerald-600 absolute right-2.5 top-2.5" />
+                    {isDeliveryStreetInvalid ? (
+                      <AlertCircle className="w-4 h-4 text-red-500 absolute right-2.5 top-2.5" />
+                    ) : (draftPo.delivery.deliveryAddress?.street?.trim() || draftPo.delivery.deliveryLocation?.trim()) ? (
+                      <Check className="w-4 h-4 text-emerald-600 absolute right-2.5 top-2.5" />
+                    ) : null}
                   </div>
+                  {isDeliveryStreetInvalid && (
+                    <p className="text-red-600 text-[11px] font-medium mt-1 flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      {dict.orderDetail.validationMessages.deliveryStreetRequired}
+                    </p>
+                  )}
                 </div>
 
                 {/* Delivery Recipient */}
                 <div>
                   <label className="block text-[13px] font-light text-[#8f9494] mb-1.5 field-header">
-                    Delivery Recipient
+                    {dict.orderDetail.fields.recipientName}
                   </label>
                   <input
                     type="text"
                     value={draftPo.delivery.recipientName || draftPo.delivery.deliveryLocation || 'FH Oschersleben'}
-                    onChange={(e) => setDraftPo({ ...draftPo, delivery: { ...draftPo.delivery, recipientName: e.target.value } })}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                    }}
+                    onChange={(e) => handleUpdateField({ ...draftPo, delivery: { ...draftPo.delivery, recipientName: e.target.value } })}
                     className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-[13px] font-normal text-[#4f4f4e] focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-[#F8B800]"
                   />
                 </div>
@@ -987,45 +836,52 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
           <div className="bg-white rounded-xl border border-gray-200 shadow-2xs overflow-hidden">
             <div className="px-4 py-3 border-b flex items-center justify-between bg-gray-50/75 border-gray-200">
               <div className="flex items-center gap-2">
-                {renderSectionTitle('2. Order Information')}
+                {renderSectionTitle(isDe ? '2. Bestellinformationen' : '2. Order Information')}
               </div>
             </div>
 
             <div className="p-4 space-y-3.5">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {/* Purchase Order No./ Bestellnummer * */}
+                {/* Purchase Order No. */}
                 <div>
                   <label className="block text-[13px] font-light text-[#8f9494] mb-1.5 field-header">
-                    Purchase Order No./ Bestellnummer <span className="text-red-500 font-bold">*</span>
+                    {dict.orderDetail.fields.poNumber} <span className="text-red-500 font-bold">*</span>
                   </label>
                   <div className="relative">
                     <input
                       type="text"
                       value={draftPo.order.poNumber || ''}
-                      onChange={(e) => setDraftPo({ ...draftPo, order: { ...draftPo.order, poNumber: e.target.value } })}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                      }}
+                      onChange={(e) => handleUpdateField({ ...draftPo, order: { ...draftPo.order, poNumber: e.target.value } })}
                       className={`w-full pl-3 pr-8 py-2 rounded-lg text-[13px] font-normal transition-colors focus:outline-none ${
-                        !isXmlGenerated && !draftPo.order.poNumber?.trim()
-                          ? 'bg-red-50/40 border border-red-400 text-red-700 focus:border-red-500 focus:ring-1 focus:ring-red-400'
+                        isPoNumberInvalid
+                          ? 'bg-red-50/20 border border-red-500 text-red-950 focus:ring-1 focus:ring-red-500'
                           : 'bg-white border border-gray-200 text-[#4f4f4e] focus:border-gray-400 focus:ring-1 focus:ring-[#F8B800]'
                       }`}
                     />
-                    {draftPo.order.poNumber?.trim() || isXmlGenerated ? (
+                    {isPoNumberInvalid ? (
+                      <AlertCircle className="w-4 h-4 text-red-500 absolute right-2.5 top-2.5" />
+                    ) : draftPo.order.poNumber?.trim() ? (
                       <Check className="w-4 h-4 text-emerald-600 absolute right-2.5 top-2.5" />
-                    ) : (
-                      <AlertTriangle className="w-4 h-4 text-red-500 absolute right-2.5 top-2.5" />
-                    )}
+                    ) : null}
                   </div>
+                  {isPoNumberInvalid && (
+                    <p className="text-red-600 text-[11px] font-medium mt-1 flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      {dict.orderDetail.validationMessages.poNumberRequired}
+                    </p>
+                  )}
                 </div>
 
-                {/* Requested Delivery Date * */}
+                {/* Requested Delivery Date */}
                 <div>
                   <label className="block text-[13px] font-light text-[#8f9494] mb-1.5 field-header">
-                    Requested Delivery Date <span className="text-red-500 font-bold">*</span>
+                    {dict.orderDetail.fields.requestedDeliveryDate} <span className="text-red-500 font-bold">*</span>
                   </label>
-                  <div className="relative flex items-center">
+                  <div className={`relative flex items-center rounded-lg ${
+                    isDeliveryDateInvalid
+                      ? 'bg-red-50/20 border border-red-500 focus-within:ring-1 focus-within:ring-red-500'
+                      : 'bg-white border border-gray-200 focus-within:border-[#F8B800] focus-within:ring-1 focus-within:ring-[#F8B800]'
+                  }`}>
                     <input
                       ref={dateInputRef}
                       type="date"
@@ -1038,63 +894,43 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
                             : ''
                           : ''
                       }
-                      onClick={() => {
-                        try {
-                          dateInputRef.current?.showPicker();
-                        } catch {}
-                      }}
-                      onChange={(e) => setDraftPo({ ...draftPo, delivery: { ...draftPo.delivery, requestedDeliveryDate: e.target.value } })}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                      }}
-                      className={`w-full pl-3 pr-16 py-2 rounded-lg text-[13px] font-normal font-sans transition-colors cursor-pointer focus:outline-none ${
-                        !isXmlGenerated && !draftPo.delivery.requestedDeliveryDate?.trim()
-                          ? 'bg-red-50/40 border border-red-400 text-red-700 focus:border-red-500'
-                          : 'bg-white border border-gray-200 text-[#4f4f4e] focus:border-[#F8B800] focus:ring-1 focus:ring-[#F8B800]'
-                      }`}
+                      onChange={(e) => handleUpdateField({ ...draftPo, delivery: { ...draftPo.delivery, requestedDeliveryDate: e.target.value } })}
+                      className="w-full pl-3 pr-10 py-2 rounded-lg text-[13px] font-normal font-sans transition-colors cursor-pointer focus:outline-none bg-transparent text-[#4f4f4e]"
                     />
-                    <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          try {
-                            dateInputRef.current?.showPicker();
-                          } catch {
-                            dateInputRef.current?.focus();
-                          }
-                        }}
-                        className="p-1 rounded hover:bg-amber-50 text-[#F8B800] hover:text-[#d49b00] cursor-pointer transition-colors"
-                        title="Open calendar date picker"
-                      >
-                        <Calendar className="w-4 h-4 text-[#F8B800]" />
-                      </button>
-                      {draftPo.delivery.requestedDeliveryDate?.trim() || isXmlGenerated ? (
+                    <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5 pointer-events-none">
+                      {isDeliveryDateInvalid ? (
+                        <AlertCircle className="w-4 h-4 text-red-500" />
+                      ) : draftPo.delivery.requestedDeliveryDate?.trim() ? (
                         <Check className="w-4 h-4 text-emerald-600" />
-                      ) : (
-                        <AlertTriangle className="w-4 h-4 text-red-500" />
-                      )}
+                      ) : null}
                     </div>
                   </div>
+                  {isDeliveryDateInvalid && (
+                    <p className="text-red-600 text-[11px] font-medium mt-1 flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      {dict.orderDetail.validationMessages.requestedDeliveryDateRequired}
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
           </div>
 
-          {/* 📦 3. LINE ITEMS / POSITIONS (EDITABLE TABLE) */}
+          {/* 📦 3. LINE ITEMS / POSITIONS */}
           <div className="bg-white rounded-xl border border-gray-200 shadow-2xs overflow-hidden">
-            {/* Header: Title, Search (icon on right), Add Position Button */}
             <div className="px-4 py-3 border-b flex flex-wrap items-center justify-between gap-2.5 bg-gray-50/75 border-gray-200">
               <div className="flex items-center gap-2">
-                {renderSectionTitle(`3. Line Items / Positions (${draftPo.lineItems.length} Items)`)}
+                {renderSectionTitle(
+                  `${isDe ? '3. Positionen' : '3. Line Items / Positions'} (${draftPo.lineItems.length} ${dict.orderDetail.lineItems.positionsCount})`
+                )}
               </div>
 
               <div className="flex items-center gap-2.5 flex-wrap">
-                {/* Search Bar with Search Icon Shifted to the RIGHT */}
+                {/* Search Bar */}
                 <div className="relative flex items-center">
                   <input
                     type="text"
-                    placeholder="Search line items..."
+                    placeholder={isDe ? 'Positionen durchsuchen...' : 'Search line items...'}
                     value={lineItemSearchTerm}
                     onChange={(e) => setLineItemSearchTerm(e.target.value)}
                     className="w-44 sm:w-52 pl-3 pr-8 py-1.5 text-xs bg-white border border-gray-300 rounded-lg text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#F8B800] focus:ring-1 focus:ring-[#F8B800] transition-colors"
@@ -1105,7 +941,7 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
                 {unmappedLineCountDraft > 0 && !isXmlGenerated && (
                   <span className="text-xs font-medium text-red-700 bg-red-50 border border-red-200 px-2.5 py-1 rounded-md flex items-center gap-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-red-600 inline-block" />
-                    {unmappedLineCountDraft} Unmapped
+                    {unmappedLineCountDraft} {dict.orderDetail.lineItems.unmapped}
                   </span>
                 )}
 
@@ -1115,7 +951,7 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
                   className="bg-white hover:bg-gray-50 text-gray-800 font-medium px-3 py-1.5 rounded-lg text-xs border border-gray-300 flex items-center gap-1 shadow-2xs cursor-pointer transition-colors"
                 >
                   <Plus className="w-3.5 h-3.5 text-gray-600" />
-                  <span>Add Item Position</span>
+                  <span>{isDe ? 'Position hinzufügen' : 'Add Item Position'}</span>
                 </button>
               </div>
             </div>
@@ -1125,13 +961,13 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="bg-gray-50/75 text-gray-800 font-bold border-b border-gray-200 text-xs">
-                    <th className="py-2 px-2 w-14 text-center font-bold">Pos.</th>
-                    <th className="py-2 px-2 min-w-[140px] font-bold">EAN / Barcode <span className="text-red-500">*</span></th>
-                    <th className="py-2 px-2 min-w-[140px] font-bold">GEBOL Art.Nr. <span className="text-red-500">*</span></th>
-                    <th className="py-2 px-2 min-w-[120px] font-bold">Customer Art.Nr.</th>
-                    <th className="py-2 px-2 min-w-[200px] font-bold">Description</th>
-                    <th className="py-2 px-2 text-right w-20 font-bold">Qty. <span className="text-red-500">*</span></th>
-                    <th className="py-2 px-2 text-center w-14 font-bold">Action</th>
+                    <th className="py-2 px-2 w-14 text-center font-bold">{dict.orderDetail.lineItems.pos}</th>
+                    <th className="py-2 px-2 min-w-[140px] font-bold">{dict.orderDetail.lineItems.eanBarcode} <span className="text-red-500">*</span></th>
+                    <th className="py-2 px-2 min-w-[140px] font-bold">{dict.orderDetail.lineItems.gebolArtNo} <span className="text-red-500">*</span></th>
+                    <th className="py-2 px-2 min-w-[120px] font-bold">{dict.orderDetail.lineItems.customerArtNo}</th>
+                    <th className="py-2 px-2 min-w-[200px] font-bold">{dict.orderDetail.lineItems.description}</th>
+                    <th className="py-2 px-2 text-right w-20 font-bold">{dict.orderDetail.lineItems.quantity} <span className="text-red-500">*</span></th>
+                    <th className="py-2 px-2 text-center w-14 font-bold">{dict.orderDetail.lineItems.actions}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 text-[#4f4f4e] text-xs">
@@ -1140,7 +976,10 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
                       !item.skuMatched ||
                       item.gebolArticleNo === 'UNMAPPED-ARTICLE' ||
                       item.gebolArticleNo === 'UNMAPPED-SKU' ||
-                      !item.gebolArticleNo;
+                      !item.gebolArticleNo?.trim();
+
+                    const isInvalidQty = !item.quantity || item.quantity <= 0;
+                    const showLineError = (hasAttemptedXml || isUnmapped) && isUnmapped && !isXmlGenerated;
 
                     const matchedMaster =
                       (item.gebolArticleNo && item.gebolArticleNo !== 'UNMAPPED-ARTICLE' && item.gebolArticleNo !== 'UNMAPPED-SKU'
@@ -1159,41 +998,31 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
                         key={item.id}
                         className={`transition-colors ${
                           !isXmlGenerated && isUnmapped
-                            ? 'bg-red-50/40 hover:bg-red-50/70'
+                            ? 'bg-red-50/40 hover:bg-red-50/70 border-l-2 border-l-red-500'
                             : 'hover:bg-gray-50/60'
                         }`}
                       >
                         {/* Pos */}
-                        <td className="py-1.5 px-2 text-center">
+                        <td className="py-2 px-2 text-center align-top">
                           <input
                             type="number"
                             value={item.itemPos}
                             onChange={(e) => handleLineItemChange(item.id, { itemPos: Number(e.target.value) || 0 })}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                            }}
-                            className={`w-12 text-center py-1 text-xs font-normal font-mono rounded focus:outline-none transition-colors ${
-                              !isXmlGenerated && (!item.itemPos || item.itemPos <= 0)
-                                ? 'bg-red-50/60 border border-red-400 text-red-700 focus:border-red-500 font-bold'
-                                : 'bg-white border border-gray-200 text-[#4f4f4e] focus:border-gray-400'
-                            }`}
+                            className="w-12 text-center py-1 text-xs font-normal font-mono rounded focus:outline-none bg-white border border-gray-200 text-[#4f4f4e] focus:border-gray-400"
                           />
                         </td>
 
                         {/* EAN / Barcode */}
-                        <td className="py-1.5 px-2">
+                        <td className="py-2 px-2 align-top">
                           <div className="relative flex items-center">
                             <input
                               type="text"
                               value={item.eanBarcode || effectiveEan}
                               onChange={(e) => handleLineItemChange(item.id, { eanBarcode: e.target.value })}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                              }}
                               placeholder="EAN / Barcode"
                               className={`w-full pl-2 pr-10 py-1 text-xs font-normal font-mono rounded transition-colors focus:outline-none ${
-                                !isXmlGenerated && isUnmapped && (!item.eanBarcode || !matchedMaster)
-                                  ? 'bg-red-50/60 border border-red-400 text-red-700 focus:border-red-500 focus:ring-1 focus:ring-red-400'
+                                showLineError
+                                  ? 'bg-red-50/20 border border-red-500 text-red-950 focus:border-red-500 focus:ring-1 focus:ring-red-500'
                                   : 'bg-white border border-gray-200 text-[#4f4f4e] focus:border-gray-400'
                               }`}
                             />
@@ -1202,33 +1031,28 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
                                 type="button"
                                 onClick={() => setResolvingLineItemId(item.id)}
                                 className="text-gray-400 hover:text-amber-600 p-0.5 rounded cursor-pointer transition-colors"
-                                title="Lookup in Article Masters"
+                                title={dict.orderDetail.lineItems.lookupArticle}
                               >
                                 <SearchIcon className="w-3.5 h-3.5" />
                               </button>
                               {(item.eanBarcode || effectiveEan) && matchedMaster ? (
                                 <Check className="w-3.5 h-3.5 text-emerald-600 mr-1" />
-                              ) : !isXmlGenerated && (item.eanBarcode || effectiveEan) ? (
-                                <AlertTriangle className="w-3.5 h-3.5 text-red-500 mr-1" />
                               ) : null}
                             </div>
                           </div>
                         </td>
 
                         {/* GEBOL Art.Nr. */}
-                        <td className="py-1.5 px-2">
+                        <td className="py-2 px-2 align-top">
                           <div className="relative flex items-center">
                             <input
                               type="text"
                               value={item.gebolArticleNo || effectiveGebolArtNo}
                               onChange={(e) => handleLineItemChange(item.id, { gebolArticleNo: e.target.value })}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                              }}
                               placeholder="Art.No."
                               className={`w-full pl-2 pr-10 py-1 text-xs font-normal font-mono rounded transition-colors focus:outline-none ${
-                                !isXmlGenerated && isUnmapped
-                                  ? 'bg-red-50/60 border border-red-400 text-red-700 focus:border-red-500 focus:ring-1 focus:ring-red-400'
+                                showLineError
+                                  ? 'bg-red-50/20 border border-red-500 text-red-950 focus:border-red-500 focus:ring-1 focus:ring-red-500'
                                   : 'bg-white border border-gray-200 text-[#4f4f4e] focus:border-gray-400'
                               }`}
                             />
@@ -1237,69 +1061,72 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
                                 type="button"
                                 onClick={() => setResolvingLineItemId(item.id)}
                                 className="text-gray-400 hover:text-amber-600 p-0.5 rounded cursor-pointer transition-colors"
-                                title="Lookup in Article Masters"
+                                title={dict.orderDetail.lineItems.lookupArticle}
                               >
                                 <SearchIcon className="w-3.5 h-3.5" />
                               </button>
                               {(item.gebolArticleNo || effectiveGebolArtNo) && matchedMaster ? (
                                 <Check className="w-3.5 h-3.5 text-emerald-600 mr-1" />
-                              ) : !isXmlGenerated ? (
-                                <AlertTriangle className="w-3.5 h-3.5 text-red-500 mr-1" />
                               ) : null}
                             </div>
                           </div>
+                          {showLineError && (
+                            <p className="text-red-600 text-[10.5px] font-medium mt-1 flex items-center gap-1 whitespace-nowrap">
+                              <AlertCircle className="w-3 h-3 shrink-0" />
+                              <span>{dict.orderDetail.validationMessages.articleMappingRequired}</span>
+                            </p>
+                          )}
                         </td>
 
                         {/* Customer Art.Nr. */}
-                        <td className="py-1.5 px-2">
+                        <td className="py-2 px-2 align-top">
                           <input
                             type="text"
                             value={item.customerArticleNo || ''}
                             onChange={(e) => handleLineItemChange(item.id, { customerArticleNo: e.target.value })}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                            }}
-                            className="w-full px-2 py-1 text-xs font-normal font-mono text-[#4f4f4e] bg-white border border-gray-200 rounded focus:border-gray-400 focus:outline-none"
+                            className="w-full px-2 py-1 text-xs font-normal font-mono bg-white border border-gray-200 rounded text-[#4f4f4e] focus:outline-none focus:border-gray-400"
                           />
                         </td>
 
                         {/* Description */}
-                        <td className="py-1.5 px-2">
+                        <td className="py-2 px-2 align-top">
                           <input
                             type="text"
                             value={item.description || ''}
                             onChange={(e) => handleLineItemChange(item.id, { description: e.target.value })}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                            }}
-                            className="w-full px-2 py-1 text-xs font-normal text-[#4f4f4e] bg-white border border-gray-200 rounded focus:border-gray-400 focus:outline-none"
+                            className="w-full px-2 py-1 text-xs font-normal bg-white border border-gray-200 rounded text-[#4f4f4e] focus:outline-none focus:border-gray-400"
                           />
                         </td>
 
-                        {/* Qty */}
-                        <td className="py-1.5 px-2 text-right">
+                        {/* Quantity */}
+                        <td className="py-2 px-2 text-right align-top">
                           <input
                             type="number"
                             value={item.quantity}
                             onChange={(e) => handleLineItemChange(item.id, { quantity: Number(e.target.value) || 0 })}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                            }}
-                            className={`w-14 px-1.5 py-1 text-right text-xs font-normal rounded focus:outline-none transition-colors ${
-                              !isXmlGenerated && (!item.quantity || item.quantity <= 0)
-                                ? 'bg-red-50/60 border border-red-400 text-red-700 focus:border-red-500 font-bold'
+                            className={`w-16 text-right py-1 px-1.5 text-xs font-mono font-bold rounded focus:outline-none ${
+                              hasAttemptedXml && isInvalidQty
+                                ? 'bg-red-50/20 border border-red-500 text-red-950 focus:ring-1 focus:ring-red-500'
                                 : 'bg-white border border-gray-200 text-[#4f4f4e] focus:border-gray-400'
                             }`}
                           />
+                          {hasAttemptedXml && isInvalidQty && (
+                            <p className="text-red-600 text-[10px] font-medium mt-1 text-right whitespace-nowrap">
+                              <span>{dict.orderDetail.validationMessages.quantityRequired}</span>
+                            </p>
+                          )}
                         </td>
 
-                        {/* Action */}
-                        <td className="py-1.5 px-2 text-center">
+                        {/* Actions */}
+                        <td className="py-2 px-2 text-center align-top">
                           <button
                             type="button"
-                            onClick={() => handleDeleteLineItem(item.id)}
-                            className="text-gray-400 hover:text-red-600 p-1 cursor-pointer transition-colors inline-flex items-center justify-center"
-                            title="Delete Item Position"
+                            onClick={() => {
+                              const updatedItems = draftPo.lineItems.filter((i) => i.id !== item.id);
+                              handleUpdateField({ ...draftPo, lineItems: updatedItems });
+                            }}
+                            className="text-gray-400 hover:text-red-600 p-1 cursor-pointer transition-colors"
+                            title={dict.common.delete}
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -1310,50 +1137,31 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
                 </tbody>
               </table>
             </div>
-
-            {/* Show All Toggle Link */}
-            {!lineItemSearchTerm && draftPo.lineItems.length > 5 && (
-              <div className="p-2.5 text-center border-t border-gray-100">
-                <button
-                  type="button"
-                  onClick={() => setShowAllItems(!showAllItems)}
-                  className="text-xs font-medium text-gray-700 hover:text-gray-900 inline-flex items-center gap-1 cursor-pointer"
-                >
-                  <span>{showAllItems ? 'Show fewer items' : `Show all ${draftPo.lineItems.length} items`}</span>
-                  <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showAllItems ? 'rotate-180' : ''}`} />
-                </button>
-              </div>
-            )}
           </div>
 
-          {/* 📝 4. ADDITIONAL INFORMATION (EXPANDED TO FULL AVAILABLE WIDTH, NO SCROLLBAR WHEN DOC HIDDEN) */}
-          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-2xs">
+          {/* 📝 4. ADDITIONAL DETAILS & INSTRUCTIONS */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-2xs overflow-hidden">
             <div className="px-4 py-3 border-b flex items-center justify-between bg-gray-50/75 border-gray-200">
               <div className="flex items-center gap-2">
-                {renderSectionTitle('4. Additional Information')}
+                {renderSectionTitle(isDe ? '4. Zusätzliche Hinweise & Bemerkungen' : '4. Additional Details & Instructions')}
               </div>
             </div>
 
-            {/* Text Box with formatted sectionized data inside */}
-            <div className="p-4 space-y-1.5">
+            <div className="p-4">
               <textarea
-                rows={isDocCollapsed ? 12 : 7}
+                rows={5}
                 value={additionalDetailsText}
                 onChange={(e) => {
-                  const newText = e.target.value;
-                  setAdditionalDetailsText(newText);
-                  setDraftPo({
+                  setAdditionalDetailsText(e.target.value);
+                  handleUpdateField({
                     ...draftPo,
                     order: {
                       ...draftPo.order,
-                      customerNotes: newText,
+                      customerNotes: e.target.value,
                     },
                   });
                 }}
-                placeholder="[Delivery Terms & Instructions]&#10;Incoterms: ...&#10;Payment Terms: ...&#10;&#10;[Customer Representative]&#10;Contact Person: ...&#10;Email: ...&#10;Phone: ..."
-                className={`w-full p-3.5 bg-gray-50/60 hover:bg-white focus:bg-white border border-gray-200 rounded-lg text-[13px] font-normal font-sans text-[#4f4f4e] focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-[#F8B800] transition-colors leading-relaxed ${
-                  isDocCollapsed ? 'min-h-[260px] overflow-hidden' : 'resize-y'
-                }`}
+                className="w-full p-3 bg-gray-50/60 hover:bg-white focus:bg-white border border-gray-200 rounded-lg text-[13px] font-normal font-sans text-[#4f4f4e] focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-[#F8B800] transition-colors leading-relaxed"
               />
             </div>
           </div>
@@ -1361,36 +1169,14 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
         </div>
       </div>
 
-      {/* 🔹 STICKY BOTTOM SAVE & CANCEL ACTION BAR (Sticks to bottom, spreads across full workspace, NO "Unsaved changes" label, NO icons) */}
-      {isDirty && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-[#E0E0E0] shadow-[0_-4px_20px_rgba(0,0,0,0.08)] px-6 py-3 flex items-center justify-end gap-3 animate-in slide-in-from-bottom-2 duration-150">
-          <button
-            type="button"
-            onClick={handleCancelChanges}
-            className="bg-white hover:bg-gray-100 text-gray-700 font-semibold px-5 py-2 rounded text-xs transition-colors cursor-pointer border border-[#E0E0E0] shadow-2xs"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleSaveChanges}
-            className="bg-[#f7b611] hover:bg-[#e2a508] text-white font-semibold px-6 py-2 rounded text-xs shadow-xs transition-colors cursor-pointer"
-          >
-            Save
-          </button>
-        </div>
-      )}
-
-      {/* 🔹 ARTICLE MASTER LOOKUP MODAL (Standardized CTA button) */}
+      {/* 🔹 ARTICLE MASTER LOOKUP MODAL */}
       {resolvingLineItemId && (
         <div className="fixed inset-0 bg-black/35 backdrop-blur-[2px] flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
           <div className="bg-white rounded-xl shadow-2xl border border-gray-200 w-full max-w-5xl overflow-hidden flex flex-col max-h-[85vh]">
             <div className="px-6 py-3.5 flex items-center justify-between border-b border-gray-200 bg-white">
-              <div>
-                <h3 className="font-bold text-[17px] text-[#4f4f4e]">
-                  Assign GEBOL Article
-                </h3>
-              </div>
+              <h3 className="font-bold text-[17px] text-[#4f4f4e]">
+                {dict.orderDetail.articleModal.title}
+              </h3>
               <button
                 type="button"
                 onClick={() => setResolvingLineItemId(null)}
@@ -1405,7 +1191,7 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
               <div className="relative">
                 <input
                   type="text"
-                  placeholder="Search GEBOL catalog by Art.Nr, description, or barcode..."
+                  placeholder={dict.orderDetail.articleModal.searchPlaceholder}
                   value={articleSearchTerm}
                   onChange={(e) => setArticleSearchTerm(e.target.value)}
                   className="w-full pl-3 pr-9 py-2 border border-gray-300 rounded-lg bg-white text-[13px] font-normal text-[#4f4f4e] focus:outline-none focus:border-[#F8B800] focus:ring-1 focus:ring-[#F8B800]"
@@ -1414,22 +1200,22 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
               </div>
             </div>
 
-            {/* Compact Articles Table */}
+            {/* Articles Table */}
             <div className="overflow-y-auto px-2 py-2 flex-1 max-h-[50vh]">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
                   <tr className="bg-gray-100 text-gray-800 font-bold border-b border-gray-200 text-xs">
-                    <th className="py-2.5 px-3 w-28 font-bold text-gray-800">Art.Nr.</th>
-                    <th className="py-2.5 px-3 font-bold text-gray-800">Article Description</th>
-                    <th className="py-2.5 px-3 w-44 font-bold text-gray-800">EAN / Barcode</th>
-                    <th className="py-2.5 px-3 w-28 text-center font-bold text-gray-800">Action</th>
+                    <th className="py-2.5 px-3 w-28 font-bold text-gray-800">{dict.orderDetail.articleModal.artNo}</th>
+                    <th className="py-2.5 px-3 font-bold text-gray-800">{dict.orderDetail.articleModal.name}</th>
+                    <th className="py-2.5 px-3 w-44 font-bold text-gray-800">{dict.orderDetail.articleModal.ean}</th>
+                    <th className="py-2.5 px-3 w-28 text-center font-bold text-gray-800">{dict.common.actions}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 text-xs">
                   {filteredArticles.length === 0 ? (
                     <tr>
                       <td colSpan={4} className="py-8 text-center text-gray-500">
-                        No matching GEBOL articles found.
+                        {dict.common.noDataFound}
                       </td>
                     </tr>
                   ) : (
@@ -1451,7 +1237,6 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
                           {art.ean}
                         </td>
                         <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                          {/* Standardized Primary Yellow CTA button */}
                           <button
                             type="button"
                             onClick={(e) => {
@@ -1461,7 +1246,7 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
                             className="bg-[#F8B800] hover:bg-[#e0a400] text-gray-900 font-bold px-3.5 py-1.5 rounded-lg text-xs cursor-pointer shadow-2xs inline-flex items-center gap-1 transition-colors"
                           >
                             <Check className="w-3.5 h-3.5 text-gray-900 stroke-[2.5]" />
-                            <span>Select</span>
+                            <span>{dict.orderDetail.articleModal.selectBtn}</span>
                           </button>
                         </td>
                       </tr>
@@ -1478,7 +1263,7 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
                 onClick={() => setResolvingLineItemId(null)}
                 className="px-4 py-1.5 rounded-md border border-gray-300 bg-white hover:bg-gray-100 font-medium text-xs text-gray-700 cursor-pointer transition-colors"
               >
-                Cancel
+                {dict.orderDetail.articleModal.cancelBtn}
               </button>
             </div>
           </div>
@@ -1515,7 +1300,7 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
         });
 
         const handleSelectCustomer = (cust: CustomerMasterRecord) => {
-          setDraftPo({
+          const updatedPo: PurchaseOrderRecord = {
             ...draftPo,
             buyer: {
               ...draftPo.buyer,
@@ -1535,9 +1320,14 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
               paymentTerms: cust.paymentTerms || draftPo.order.paymentTerms,
               incoterms: cust.incoterms || draftPo.order.incoterms,
             },
-          });
+          };
+
+          handleUpdateField(updatedPo);
           setIsCustomerModalOpen(false);
-          toast.success('Customer Master Selected', `${cust.companyName} linked to draft. Click "Save" at bottom to commit.`);
+          toast.success(
+            isDe ? 'Kunde zugewiesen' : 'Customer Assigned',
+            `${cust.companyName} ${isDe ? 'wurde zugewiesen.' : 'assigned to order.'}`
+          );
         };
 
         return (
@@ -1545,11 +1335,9 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
             <div className="bg-white rounded-xl shadow-2xl border border-gray-200 w-full max-w-5xl overflow-hidden flex flex-col max-h-[85vh] mx-4 sm:mx-8">
               {/* Header */}
               <div className="px-6 py-3.5 flex items-center justify-between border-b border-gray-200 bg-white">
-                <div>
-                  <h3 className="font-bold text-[17px] text-[#4f4f4e]">
-                    Customer Master Lookup
-                  </h3>
-                </div>
+                <h3 className="font-bold text-[17px] text-[#4f4f4e]">
+                  {isDe ? 'Kundenstamm-Suche' : 'Customer Master Lookup'}
+                </h3>
                 <button
                   type="button"
                   onClick={() => setIsCustomerModalOpen(false)}
@@ -1564,7 +1352,7 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
                 <div className="relative flex-1">
                   <input
                     type="text"
-                    placeholder="Search by GPNr, company name, ZIP code, city, street, or ILN..."
+                    placeholder={dict.customerMaster.searchPlaceholder}
                     value={customerSearchTerm}
                     onChange={(e) => setCustomerSearchTerm(e.target.value)}
                     className="w-full pl-3 pr-9 py-2 border border-gray-300 rounded-md bg-white text-[13px] text-gray-900 focus:outline-none focus:border-[#F8B800] focus:ring-1 focus:ring-[#F8B800]"
@@ -1579,7 +1367,7 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
                     onChange={(e) => setCustomerCountryFilter(e.target.value)}
                     className="border border-gray-300 rounded-md bg-white py-2 px-3 text-xs text-gray-700 focus:outline-none focus:border-[#F8B800]"
                   >
-                    <option value="All">All Countries</option>
+                    <option value="All">{isDe ? 'Alle Länder' : 'All Countries'}</option>
                     <option value="DE">DE</option>
                     <option value="AT">AT</option>
                   </select>
@@ -1591,14 +1379,14 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
                 <table className="w-full text-left text-xs border-collapse">
                   <thead className="sticky top-0 bg-gray-100/95 backdrop-blur-xs z-10 border-b border-gray-200 font-bold text-sm">
                     <tr className="text-sm font-bold text-gray-800">
-                      <th className="py-2 px-2.5 whitespace-nowrap font-bold">GPNr.</th>
-                      <th className="py-2 px-2.5 font-bold">Company Name</th>
-                      <th className="py-2 px-2.5 whitespace-nowrap font-bold">ZIP Code</th>
-                      <th className="py-2 px-2.5 font-bold">City</th>
-                      <th className="py-2 px-2.5 font-bold">Street</th>
-                      <th className="py-2 px-2.5 whitespace-nowrap font-bold">Country</th>
-                      <th className="py-2 px-2.5 whitespace-nowrap font-bold">ILN</th>
-                      <th className="py-2 px-2.5 text-right whitespace-nowrap font-bold">Action</th>
+                      <th className="py-2 px-2.5 whitespace-nowrap font-bold">{isDe ? 'GP-Nr.' : 'GPNr.'}</th>
+                      <th className="py-2 px-2.5 font-bold">{isDe ? 'Firmenname' : 'Company Name'}</th>
+                      <th className="py-2 px-2.5 whitespace-nowrap font-bold">{isDe ? 'PLZ' : 'ZIP Code'}</th>
+                      <th className="py-2 px-2.5 font-bold">{isDe ? 'Ort' : 'City'}</th>
+                      <th className="py-2 px-2.5 font-bold">{isDe ? 'Straße' : 'Street'}</th>
+                      <th className="py-2 px-2.5 whitespace-nowrap font-bold">{isDe ? 'Land' : 'Country'}</th>
+                      <th className="py-2 px-2.5 whitespace-nowrap font-bold">{isDe ? 'ILN / GLN' : 'ILN'}</th>
+                      <th className="py-2 px-2.5 text-right whitespace-nowrap font-bold">{dict.common.actions}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 bg-white">
@@ -1606,7 +1394,7 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
                       <tr>
                         <td colSpan={8} className="py-10 text-center text-gray-500">
                           <Building2 className="w-7 h-7 text-gray-300 mx-auto mb-1.5" />
-                          <p className="font-medium text-xs text-gray-800">No matching customer master records found</p>
+                          <p className="font-medium text-xs text-gray-800">{dict.common.noDataFound}</p>
                         </td>
                       </tr>
                     ) : (
@@ -1647,7 +1435,7 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
                               className="bg-[#F8B800] hover:bg-[#e0a400] text-gray-900 font-bold px-3 py-1 rounded-md text-xs shrink-0 cursor-pointer inline-flex items-center gap-1 transition-colors shadow-2xs"
                             >
                               <Check className="w-3 h-3 text-gray-900 stroke-[2.5]" />
-                              <span>Select</span>
+                              <span>{isDe ? 'Auswählen' : 'Select'}</span>
                             </button>
                           </td>
                         </tr>
@@ -1664,7 +1452,7 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
                   onClick={() => setIsCustomerModalOpen(false)}
                   className="px-4 py-1.5 rounded-md border border-gray-300 bg-white hover:bg-gray-100 font-medium text-xs text-gray-700 cursor-pointer transition-colors"
                 >
-                  Cancel
+                  {dict.common.cancel}
                 </button>
               </div>
             </div>
@@ -1672,16 +1460,14 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
         );
       })()}
 
-      {/* 🔹 ADD ITEM POSITION MODAL (QUANTITY STEPPER IN TABLE) */}
+      {/* 🔹 ADD ITEM POSITION MODAL */}
       {isAddItemModalOpen && (
         <div className="fixed inset-0 bg-black/35 backdrop-blur-[2px] flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
           <div className="bg-white rounded-xl shadow-2xl border border-gray-200 w-full max-w-5xl overflow-hidden flex flex-col max-h-[85vh]">
             <div className="px-6 py-3.5 flex items-center justify-between border-b border-gray-200 bg-white">
-              <div>
-                <h3 className="font-bold text-[17px] text-[#4f4f4e]">
-                  Add Item Position
-                </h3>
-              </div>
+              <h3 className="font-bold text-[17px] text-[#4f4f4e]">
+                {isDe ? 'Position hinzufügen' : 'Add Item Position'}
+              </h3>
               <button
                 type="button"
                 onClick={() => setIsAddItemModalOpen(false)}
@@ -1696,7 +1482,7 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
               <div className="relative">
                 <input
                   type="text"
-                  placeholder="Search GEBOL catalog by Art.Nr, description, or barcode..."
+                  placeholder={dict.orderDetail.articleModal.searchPlaceholder}
                   value={addItemSearchTerm}
                   onChange={(e) => setAddItemSearchTerm(e.target.value)}
                   className="w-full pl-3 pr-9 py-2 border border-gray-300 rounded-lg bg-white text-[13px] font-normal text-[#4f4f4e] focus:outline-none focus:border-[#F8B800] focus:ring-1 focus:ring-[#F8B800]"
@@ -1705,15 +1491,15 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
               </div>
             </div>
 
-            {/* Compact Articles Table */}
+            {/* Articles Table */}
             <div className="overflow-y-auto px-2 py-2 flex-1 max-h-[55vh]">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
                   <tr className="bg-gray-100 text-gray-800 font-bold border-b border-gray-200 text-xs">
-                    <th className="py-2.5 px-3 w-28 font-bold text-gray-800">Art.Nr.</th>
-                    <th className="py-2.5 px-3 font-bold text-gray-800">Article Description</th>
-                    <th className="py-2.5 px-3 w-44 font-bold text-gray-800">EAN / Barcode</th>
-                    <th className="py-2.5 px-3 w-36 text-center font-bold text-gray-800">Quantity</th>
+                    <th className="py-2.5 px-3 w-28 font-bold text-gray-800">{dict.orderDetail.articleModal.artNo}</th>
+                    <th className="py-2.5 px-3 font-bold text-gray-800">{dict.orderDetail.articleModal.name}</th>
+                    <th className="py-2.5 px-3 w-44 font-bold text-gray-800">{dict.orderDetail.articleModal.ean}</th>
+                    <th className="py-2.5 px-3 w-36 text-center font-bold text-gray-800">{dict.orderDetail.lineItems.quantity}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 text-xs">
@@ -1742,7 +1528,6 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
                           {art.ean}
                         </td>
                         <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                          {/* Stepper with plus, minus, and quantity input */}
                           <div className="inline-flex items-center border border-gray-300 rounded-lg overflow-hidden bg-white shadow-2xs">
                             <button
                               type="button"
@@ -1758,7 +1543,6 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
                                 }
                               }}
                               className="p-1.5 hover:bg-gray-100 text-gray-700 transition-colors cursor-pointer"
-                              title="Decrease quantity"
                             >
                               <Minus className="w-3.5 h-3.5" />
                             </button>
@@ -1788,7 +1572,6 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
                                 setAddItemQuantity(newQty);
                               }}
                               className="p-1.5 hover:bg-gray-100 text-gray-700 transition-colors cursor-pointer"
-                              title="Increase quantity"
                             >
                               <Plus className="w-3.5 h-3.5" />
                             </button>
@@ -1808,7 +1591,7 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
                 onClick={() => setIsAddItemModalOpen(false)}
                 className="px-4 py-2 text-xs text-gray-700 hover:bg-gray-100 rounded-lg font-medium cursor-pointer border border-gray-300 bg-white transition-colors"
               >
-                Cancel
+                {dict.common.cancel}
               </button>
               <button
                 type="button"
@@ -1816,45 +1599,7 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
                 className="bg-[#F8B800] hover:bg-[#E0A400] text-gray-900 px-5 py-2 text-xs font-bold rounded-lg shadow-2xs cursor-pointer flex items-center gap-1.5 transition-colors"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>Add Position</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 🔹 UNSAVED CHANGES CONFIRMATION MODAL */}
-      {showUnsavedModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
-          <div className="bg-white rounded-xl shadow-2xl border border-gray-200 w-full max-w-md overflow-hidden flex flex-col">
-            <div className="p-5 flex items-start gap-3.5">
-              <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
-                <AlertCircle className="w-5 h-5" />
-              </div>
-              <div className="space-y-1">
-                <h3 className="font-bold text-base text-gray-900">
-                  Unsaved Changes
-                </h3>
-                <p className="text-xs text-gray-600 leading-relaxed">
-                  You have unsaved changes in this order. Do you want to save your modifications before leaving?
-                </p>
-              </div>
-            </div>
-
-            <div className="px-5 py-3.5 bg-gray-50 border-t border-gray-200 flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={handleModalDiscardAndExit}
-                className="px-3.5 py-1.5 text-xs font-semibold text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition-colors cursor-pointer"
-              >
-                Discard &amp; Exit
-              </button>
-              <button
-                type="button"
-                onClick={handleModalSaveAndExit}
-                className="px-4 py-1.5 text-xs font-semibold text-white bg-[#f7b611] hover:bg-[#e2a508] rounded-lg transition-colors cursor-pointer shadow-xs"
-              >
-                Save &amp; Exit
+                <span>{isDe ? 'Position hinzufügen' : 'Add Position'}</span>
               </button>
             </div>
           </div>

@@ -9,6 +9,7 @@ import { ValidationPanel } from './components/ValidationPanel';
 import { AuditTrailLog } from './components/AuditTrailLog';
 import { CustomerMasterView } from './components/CustomerMasterView';
 import { ArticleMasterView } from './components/ArticleMasterView';
+import { UserManagementView } from './components/UserManagementView';
 import { OrderDetailReviewWorkspace } from './components/OrderDetailReviewWorkspace';
 import { POIntakeModal } from './components/POIntakeModal';
 import { XmlOutputModal } from './components/XmlOutputModal';
@@ -21,10 +22,12 @@ import { ChevronRight, FileCode, Sparkles, AlertCircle, CheckCircle2, Download, 
 import { generateGebolErpXml } from './utils/xmlGenerator';
 import { useToast } from './context/ToastContext';
 import { useTheme } from './context/ThemeContext';
+import { useLanguage } from './context/LanguageContext';
 
 export default function App() {
   const toast = useToast();
   const { isThemeB } = useTheme();
+  const { dict } = useLanguage();
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [userEmail, setUserEmail] = useState<string>('');
   const [userRole, setUserRole] = useState<UserRole>('Superadmin');
@@ -363,17 +366,18 @@ export default function App() {
   // Get active navigation title for Header
   const navTitles: Record<NavItem, string> = {
     processing: '',
-    orders: '',
-    'customer-master': '',
-    'article-master': '',
+    orders: dict.nav.orders,
+    'customer-master': dict.nav.customerMaster,
+    'article-master': dict.nav.articleMaster,
+    'user-management': dict.nav.userManagement,
   };
 
   const handleNavigate = (item: NavItem) => {
     if (isNormalUser && item !== 'orders') {
       return;
     }
-    if (!userProfile.canAccessMasterData && (item === 'customer-master' || item === 'article-master')) {
-      toast.error('Access Restricted', 'Master Data is only accessible to Superadmin users.');
+    if (!userProfile.canAccessMasterData && (item === 'customer-master' || item === 'article-master' || item === 'user-management')) {
+      toast.error('Access Restricted', 'This section is only accessible to Super User.');
       return;
     }
     if (item === 'processing') {
@@ -382,7 +386,10 @@ export default function App() {
     setActiveNav(item);
   };
 
-  const handleNavigateToEntity = (nav: 'orders' | 'processing' | 'customer-master' | 'article-master', poId?: string) => {
+  const handleNavigateToEntity = (
+    nav: 'orders' | 'processing' | 'customer-master' | 'article-master' | 'user-management',
+    poId?: string
+  ) => {
     if (isNormalUser && nav !== 'orders') {
       if (poId) {
         const found = orders.find((o) => o.id === poId);
@@ -407,9 +414,15 @@ export default function App() {
       setSelectedPoId(null);
       setActiveNav(nav);
       setProcessingSubView('queue');
+    } else if (nav === 'user-management') {
+      if (!userProfile.canAccessMasterData) {
+        toast.error('Access Restricted', 'User Management is only accessible to Super User.');
+        return;
+      }
+      setActiveNav('user-management');
     } else {
       if (!userProfile.canAccessMasterData) {
-        toast.error('Access Restricted', 'Master Data is only accessible to Superadmin users.');
+        toast.error('Access Restricted', 'Master Data is only accessible to Super User.');
         return;
       }
       setActiveNav(nav);
@@ -483,14 +496,14 @@ export default function App() {
                 <nav className="flex items-center space-x-1.5 text-[13px] text-gray-500 font-medium">
                   <button
                     onClick={() => setProcessingSubView('queue')}
-                    title="Return to Orders"
+                    title={dict.orderDetail.backToOrders}
                     className="hover:text-[#1A1A1A] hover:underline cursor-pointer transition-colors"
                   >
-                    Orders
+                    {dict.orderDetail.breadcrumbsOrders}
                   </button>
                   <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
                   <span className="text-[#1A1A1A] font-bold">
-                    Order Details ({currentPo.sourceFileName || currentPo.id})
+                    {dict.orderDetail.breadcrumbsDetail} ({currentPo.sourceFileName || currentPo.id})
                   </span>
                 </nav>
               </div>
@@ -511,6 +524,8 @@ export default function App() {
           {activeNav === 'customer-master' && userProfile.canAccessMasterData && <CustomerMasterView />}
 
           {activeNav === 'article-master' && userProfile.canAccessMasterData && <ArticleMasterView />}
+
+          {activeNav === 'user-management' && userProfile.canAccessMasterData && <UserManagementView />}
         </main>
       </div>
 

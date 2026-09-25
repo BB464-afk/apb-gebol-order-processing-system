@@ -1,4 +1,4 @@
-export type POStatus = 'Processing' | 'Needs Review' | 'Ready for XML' | 'Ready For XML' | 'Processed' | 'Completed' | 'Ready' | 'Exported' | 'Failed' | 'XML Generated';
+export type POStatus = 'Processing' | 'Needs Review' | 'Processed' | 'Completed' | 'Ready' | 'Exported' | 'Failed' | 'XML Generated';
 
 export interface Address {
   street: string;

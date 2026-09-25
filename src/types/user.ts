@@ -1,4 +1,4 @@
-export type UserRole = 'Superadmin' | 'Normal User';
+export type UserRole = 'Super User' | 'Superadmin' | 'Normal User';
 
 export interface UserProfile {
   email: string;
@@ -13,8 +13,8 @@ export function getUserProfile(email?: string, selectedRole?: UserRole): UserPro
 
   // If a role was explicitly selected in the login dropdown, honor it directly!
   if (selectedRole) {
-    const isSuperadmin = selectedRole === 'Superadmin';
-    const emailToUse = normalized || (isSuperadmin ? 'lucas.platzer@gebol.at' : 'bhoomi.barot@gebol.at');
+    const isSuper = selectedRole === 'Super User' || selectedRole === 'Superadmin';
+    const emailToUse = normalized || (isSuper ? 'lucas.platzer@gebol.at' : 'bhoomi.barot@gebol.at');
     const namePart = emailToUse.split('@')[0].replace(/[._-]/g, ' ');
     const capitalizedName = namePart
       .split(' ')
@@ -25,14 +25,14 @@ export function getUserProfile(email?: string, selectedRole?: UserRole): UserPro
     const initials =
       parts.length > 1
         ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-        : capitalizedName.slice(0, 2).toUpperCase() || (isSuperadmin ? 'LP' : 'NU');
+        : capitalizedName.slice(0, 2).toUpperCase() || (isSuper ? 'LP' : 'NU');
 
     return {
       email: email?.trim() || emailToUse,
-      name: capitalizedName || (isSuperadmin ? 'Superadmin User' : 'Normal User'),
+      name: capitalizedName || (isSuper ? 'Super User' : 'Normal User'),
       initials,
       role: selectedRole,
-      canAccessMasterData: isSuperadmin,
+      canAccessMasterData: isSuper,
     };
   }
 
@@ -47,29 +47,29 @@ export function getUserProfile(email?: string, selectedRole?: UserRole): UserPro
     };
   }
 
-  // Specifically check for Lucas Platzer: Superadmin with full access
+  // Specifically check for Lucas Platzer: Super User with full access
   if (normalized === 'lucas.platzer@gebol.at') {
     return {
       email: 'Lucas.Platzer@gebol.at',
       name: 'Lucas Platzer',
       initials: 'LP',
-      role: 'Superadmin',
+      role: 'Super User',
       canAccessMasterData: true,
     };
   }
 
-  // Default if empty or generic superadmin
+  // Default if empty or generic super user
   if (!normalized) {
     return {
       email: 'Lucas.Platzer@gebol.at',
       name: 'Lucas Platzer',
       initials: 'LP',
-      role: 'Superadmin',
+      role: 'Super User',
       canAccessMasterData: true,
     };
   }
 
-  // Any other gebol.at address is treated as Superadmin, all others are Normal Users
+  // Any other gebol.at address is treated as Super User, all others are Normal Users
   if (normalized.endsWith('@gebol.at')) {
     const namePart = normalized.split('@')[0].replace(/[._-]/g, ' ');
     const capitalizedName = namePart
@@ -81,13 +81,13 @@ export function getUserProfile(email?: string, selectedRole?: UserRole): UserPro
     const initials =
       parts.length > 1
         ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-        : capitalizedName.slice(0, 2).toUpperCase() || 'AD';
+        : capitalizedName.slice(0, 2).toUpperCase() || 'SU';
 
     return {
       email: email?.trim() || normalized,
-      name: capitalizedName || 'Admin User',
+      name: capitalizedName || 'Super User',
       initials,
-      role: 'Superadmin',
+      role: 'Super User',
       canAccessMasterData: true,
     };
   }
@@ -103,7 +103,7 @@ export function getUserProfile(email?: string, selectedRole?: UserRole): UserPro
   const initials =
     parts.length > 1
       ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-      : capitalizedName.slice(0, 2).toUpperCase() || 'US';
+      : capitalizedName.slice(0, 2).toUpperCase() || 'NU';
 
   return {
     email: email?.trim() || normalized,
@@ -113,3 +113,4 @@ export function getUserProfile(email?: string, selectedRole?: UserRole): UserPro
     canAccessMasterData: false,
   };
 }
+

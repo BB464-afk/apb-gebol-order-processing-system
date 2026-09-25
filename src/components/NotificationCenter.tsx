@@ -9,10 +9,11 @@ import {
 } from 'lucide-react';
 import { useNotifications } from '../context/NotificationContext';
 import { useTheme } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
 import { AppNotification, NotificationScenario, SCENARIO_META } from '../types/notification';
 
 interface NotificationCenterProps {
-  onNavigateToEntity?: (nav: 'orders' | 'processing' | 'customer-master' | 'article-master', poId?: string) => void;
+  onNavigateToEntity?: (nav: 'orders' | 'processing' | 'customer-master' | 'article-master' | 'user-management', poId?: string) => void;
 }
 
 export const NotificationCenter: React.FC<NotificationCenterProps> = ({ onNavigateToEntity }) => {
@@ -24,6 +25,8 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ onNaviga
     clearAll,
   } = useNotifications();
   const { isThemeB } = useTheme();
+  const { language, dict } = useLanguage();
+  const isDe = language === 'de';
 
   const [isOpen, setIsOpen] = useState(false);
   const [activeFilter, setActiveFilter] = useState<'all' | NotificationScenario>('all');
@@ -60,9 +63,15 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ onNaviga
 
     if (!onNavigateToEntity) return;
 
-    if (notification.actionLabel === 'Retry Processing' || notification.scenario === 'processing_failure') {
-      // Direct user to Orders listing screen
-      onNavigateToEntity('orders');
+    if (
+      notification.scenario === 'batch_manual_review' ||
+      notification.scenario === 'batch_processed_success' ||
+      notification.scenario === 'processing_failure' ||
+      notification.actionLabel === 'Retry Processing' ||
+      notification.actionNav === 'orders'
+    ) {
+      // Redirect user to Orders listing screen
+      onNavigateToEntity('orders', notification.actionPoId);
     } else if (notification.actionNav) {
       onNavigateToEntity(notification.actionNav, notification.actionPoId);
     }
@@ -73,7 +82,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ onNaviga
       {/* Bell Trigger Button in Header */}
       <button
         onClick={() => setIsOpen(true)}
-        title="Notifications"
+        title={dict.notifications.drawerTitle}
         style={isThemeB ? { color: '#ffffff' } : undefined}
         className={`relative p-1.5 rounded transition-colors cursor-pointer header-notification-btn ${
           isThemeB
@@ -130,15 +139,15 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ onNaviga
                         id="notifications-drawer-title"
                         className="font-bold text-sm text-gray-900 notification-drawer-title"
                       >
-                        Notifications
+                        {dict.notifications.drawerTitle}
                       </h2>
                       {unreadCount > 0 ? (
                         <span className="bg-[#ED6C02] text-white font-mono text-[10px] font-bold px-2 py-0.5 rounded-full notification-unread-badge">
-                          {unreadCount} unread
+                          {unreadCount} {dict.notifications.unreadBadge}
                         </span>
                       ) : (
                         <span className="bg-emerald-600/20 text-emerald-800 text-[10px] font-semibold px-2 py-0.5 rounded border border-emerald-300">
-                          All caught up
+                          {dict.notifications.allCaughtUp}
                         </span>
                       )}
                     </div>
@@ -149,7 +158,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ onNaviga
                   {notifications.length > 0 && (
                     <button
                       onClick={clearAll}
-                      title="Clear all notifications"
+                      title={dict.notifications.clearAll}
                       className="p-1.5 rounded-lg text-gray-500 hover:text-[#ED6C02] hover:bg-gray-200 transition-colors cursor-pointer notification-action-btn"
                     >
                       <Eraser className="w-4 h-4 text-gray-500 hover:text-[#ED6C02]" />
@@ -157,7 +166,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ onNaviga
                   )}
                   <button
                     onClick={() => setIsOpen(false)}
-                    title="Close"
+                    title={dict.notifications.close}
                     className="p-1.5 rounded-lg text-gray-500 hover:text-gray-900 hover:bg-gray-200 transition-colors cursor-pointer notification-action-btn"
                   >
                     <X className="w-5 h-5 text-gray-500 hover:text-gray-900" />
@@ -169,25 +178,28 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ onNaviga
               <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-200 flex items-center justify-between gap-3 shrink-0 notification-filter-bar">
                 <div className="flex items-center gap-2 text-xs font-semibold text-gray-700 notification-filter-label">
                   <Filter className="w-3.5 h-3.5 text-gray-500 notification-filter-icon" />
-                  <span className="notification-filter-text">Filter by:</span>
+                  <span className="notification-filter-text">{dict.notifications.filterByLabel}</span>
                 </div>
                 <select
                   value={activeFilter}
                   onChange={(e) => setActiveFilter(e.target.value as 'all' | NotificationScenario)}
                   className="notification-filter-select text-xs bg-white border border-gray-300 rounded-lg px-3 py-1.5 font-medium text-gray-800 hover:border-gray-400 focus:outline-hidden focus:ring-2 focus:ring-[#F8B800] focus:border-[#F8B800] cursor-pointer shadow-2xs"
                 >
-                  <option value="all">All Notifications ({notifications.length})</option>
-                  <option value="processing_failure">
-                    Processing failure ({notifications.filter((n) => n.scenario === 'processing_failure').length})
+                  <option value="all">{dict.notifications.allFilter} ({notifications.length})</option>
+                  <option value="batch_manual_review">
+                    {dict.notifications.manualReviewFilter} ({notifications.filter((n) => n.scenario === 'batch_manual_review' || n.scenario === 'manual_review_required').length})
                   </option>
-                  <option value="manual_review_required">
-                    Manual review ({notifications.filter((n) => n.scenario === 'manual_review_required').length})
+                  <option value="batch_processed_success">
+                    {dict.notifications.processedFilter} ({notifications.filter((n) => n.scenario === 'batch_processed_success').length})
+                  </option>
+                  <option value="processing_failure">
+                    {dict.notifications.processingFailureFilter} ({notifications.filter((n) => n.scenario === 'processing_failure').length})
                   </option>
                   <option value="master_data_upload">
-                    Master Data Upload ({notifications.filter((n) => n.scenario === 'master_data_upload').length})
+                    {dict.notifications.masterDataFilter} ({notifications.filter((n) => n.scenario === 'master_data_upload').length})
                   </option>
                   <option value="xml_generation_failure">
-                    XML generation failure ({notifications.filter((n) => n.scenario === 'xml_generation_failure').length})
+                    {dict.notifications.xmlFailureFilter} ({notifications.filter((n) => n.scenario === 'xml_generation_failure').length})
                   </option>
                 </select>
               </div>
@@ -197,17 +209,26 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ onNaviga
                 {filteredNotifications.length === 0 ? (
                   <div className="py-16 px-6 text-center text-gray-400 notification-empty-state">
                     <CheckCircle2 className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                    <p className="font-semibold text-gray-800 text-sm notification-empty-title">No notifications found</p>
+                    <p className="font-semibold text-gray-800 text-sm notification-empty-title">
+                      {dict.notifications.emptyTitle}
+                    </p>
                     <p className="text-xs text-gray-500 mt-1 notification-empty-desc">
-                      There are no notifications matching the selected filter.
+                      {dict.notifications.emptyDesc}
                     </p>
                   </div>
                 ) : (
                   filteredNotifications.map((notification) => {
                     const meta = SCENARIO_META[notification.scenario] || {
                       label: 'Notification',
+                      labelDe: 'Meldung',
                       badgeClass: 'bg-gray-100 text-gray-800 border-gray-200',
                     };
+
+                    const badgeText = isDe ? meta.labelDe || meta.label : meta.label;
+                    const notifTitle = isDe ? notification.titleDe || notification.title : notification.title;
+                    const notifMessage = isDe ? notification.messageDe || notification.message : notification.message;
+                    const notifTime = isDe ? notification.timestampDe || notification.timestamp : notification.timestamp;
+                    const notifAction = isDe ? notification.actionLabelDe || notification.actionLabel : notification.actionLabel;
 
                     return (
                       <div
@@ -218,15 +239,15 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ onNaviga
                             : 'bg-amber-50/30 hover:bg-amber-50/50'
                         }`}
                       >
-                        {/* Content Area - No scenario icon in front */}
+                        {/* Content Area */}
                         <div className="w-full">
                           {/* Meta row */}
                           <div className="flex items-center justify-between gap-2 mb-1.5">
                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded border notification-badge ${meta.badgeClass}`}>
-                              {meta.label}
+                              {badgeText}
                             </span>
                             <div className="flex items-center gap-2 text-[10px] text-gray-500 notification-timestamp">
-                              <span>{notification.timestamp}</span>
+                              <span>{notifTime}</span>
                               {!notification.isRead && (
                                 <span className="w-2 h-2 rounded-full bg-[#ED6C02]" title="Unread" />
                               )}
@@ -236,7 +257,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ onNaviga
                                   e.stopPropagation();
                                   dismissNotification(notification.id);
                                 }}
-                                title="Dismiss notification"
+                                title={dict.notifications.dismiss}
                                 className="text-gray-400 hover:text-gray-700 p-0.5 rounded transition-colors cursor-pointer"
                               >
                                 <X className="w-3.5 h-3.5" />
@@ -250,22 +271,22 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ onNaviga
                               notification.isRead ? 'font-semibold text-gray-800' : 'font-bold text-[#1A1A1A]'
                             } leading-snug`}
                           >
-                            {notification.title}
+                            {notifTitle}
                           </h3>
 
                           {/* Message */}
                           <p className="text-xs text-gray-600 mt-1 leading-relaxed notification-desc">
-                            {notification.message}
+                            {notifMessage}
                           </p>
 
-                          {/* Action Buttons Row - No line in between */}
-                          {notification.actionLabel && (
+                          {/* Action Buttons Row */}
+                          {notifAction && (
                             <div className="mt-2.5 flex items-center justify-end">
                               <button
                                 onClick={() => handleActionClick(notification)}
                                 className="notification-action-button bg-[#f7b611] hover:bg-[#e2a508] text-gray-900 font-semibold px-3.5 py-1.5 rounded-lg text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
                               >
-                                <span className="text-gray-900 font-semibold">{notification.actionLabel}</span>
+                                <span className="text-gray-900 font-semibold">{notifAction}</span>
                                 <ExternalLink className="w-3.5 h-3.5 text-gray-900" />
                               </button>
                             </div>

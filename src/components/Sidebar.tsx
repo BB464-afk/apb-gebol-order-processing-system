@@ -8,15 +8,18 @@ import {
   Users,
   Package,
   Menu,
+  UserCog,
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useTheme } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
 
 export type NavItem =
   | 'processing'
   | 'orders'
   | 'customer-master'
-  | 'article-master';
+  | 'article-master'
+  | 'user-management';
 
 interface SidebarProps {
   activeNav: NavItem;
@@ -36,6 +39,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   canAccessMasterData = true,
 }) => {
   const { isThemeB } = useTheme();
+  const { dict } = useLanguage();
   const [isMasterDataOpen, setIsMasterDataOpen] = useState(
     activeNav === 'customer-master' || activeNav === 'article-master'
   );
@@ -70,7 +74,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 ? 'text-gray-300 hover:bg-[#262A36] hover:text-white'
                 : 'text-gray-700 hover:bg-gray-200/60 hover:text-gray-900'
             }`}
-            title="Expand Sidebar"
+            title={dict.nav.expandSidebar}
           >
             <Menu className="w-5 h-5" />
           </button>
@@ -99,7 +103,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 ? 'text-gray-300 hover:bg-[#262A36] hover:text-white'
                 : 'text-gray-700 hover:bg-gray-200/60 hover:text-gray-900'
             }`}
-            title="Collapse Sidebar"
+            title={dict.nav.collapseSidebar}
           >
             <Menu className="w-5 h-5" />
           </button>
@@ -107,13 +111,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
       )}
 
       {/* Navigation Links */}
-      <nav
-        className="flex-1 w-full px-2 py-4 space-y-1.5 overflow-y-auto text-[14px] font-medium"
-      >
+      <nav className="flex-1 w-full px-2 py-4 space-y-1.5 overflow-y-auto text-[14px] font-medium">
         {/* Orders (Contains Notification Badge) */}
         <button
           onClick={() => onNavigate('orders')}
-          title={isCollapsed ? `Orders (${needsReviewCount} pending)` : undefined}
+          title={isCollapsed ? `${dict.nav.orders} (${needsReviewCount} ${dict.nav.pendingCount})` : undefined}
           className={`w-full flex items-center relative ${
             isCollapsed ? 'justify-center px-0 py-3' : 'justify-between px-3 py-2.5'
           } rounded text-[14px] transition-colors text-left cursor-pointer overflow-hidden ${
@@ -128,7 +130,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         >
           {activeNav === 'orders' && (
             <>
-              {/* Selected background with less opacity */}
+              {/* Selected background with brand styling */}
               <motion.div
                 layoutId="sidebar-active-bg"
                 className={`absolute inset-0 ${
@@ -136,7 +138,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 } rounded`}
                 transition={{ type: 'spring', stiffness: 350, damping: 30 }}
               />
-              {/* Yellow line on the leftmost corner that travels along with menu item selection */}
+              {/* Yellow line indicator */}
               {!isThemeB && (
                 <motion.div
                   layoutId="sidebar-active-indicator"
@@ -175,7 +177,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       : ''
                   }`}
                 />
-                <span>Orders</span>
+                <span>{dict.nav.orders}</span>
               </div>
               {needsReviewCount > 0 && (
                 <span
@@ -207,7 +209,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   setIsMasterDataOpen(!isMasterDataOpen);
                 }
               }}
-              title={isCollapsed ? 'Master Data' : undefined}
+              title={isCollapsed ? dict.nav.masterData : undefined}
               className={`w-full flex items-center ${
                 isCollapsed ? 'justify-center px-0 py-3' : 'justify-between px-3 py-2.5'
               } rounded text-[14px] transition-colors text-left cursor-pointer ${
@@ -244,7 +246,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           : ''
                       }`}
                     />
-                    <span>Master Data</span>
+                    <span>{dict.nav.masterData}</span>
                   </div>
                   <ChevronDown
                     className={`w-3.5 h-3.5 transition-transform duration-200 text-gray-400 ${
@@ -299,7 +301,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           : ''
                       }`}
                     />
-                    <span>Customer Master</span>
+                    <span>{dict.nav.customerMaster}</span>
                   </div>
                 </button>
 
@@ -344,12 +346,76 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           : ''
                       }`}
                     />
-                    <span>Article Master</span>
+                    <span>{dict.nav.articleMaster}</span>
                   </div>
                 </button>
               </div>
             )}
           </div>
+        )}
+
+        {/* User Management Navigation Item - Only accessible for Super User */}
+        {canAccessMasterData && (
+          <button
+            onClick={() => onNavigate('user-management')}
+            title={isCollapsed ? dict.nav.userManagement : undefined}
+            className={`w-full flex items-center relative ${
+              isCollapsed ? 'justify-center px-0 py-3' : 'justify-between px-3 py-2.5'
+            } rounded text-[14px] transition-colors text-left cursor-pointer overflow-hidden ${
+              activeNav === 'user-management'
+                ? isThemeB
+                  ? 'text-[#262626] font-bold shadow-xs'
+                  : 'text-gray-900 font-bold'
+                : isThemeB
+                ? 'text-gray-300 hover:bg-[#262A36] hover:text-white'
+                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+            }`}
+          >
+            {activeNav === 'user-management' && (
+              <>
+                <motion.div
+                  layoutId="sidebar-active-bg"
+                  className={`absolute inset-0 ${
+                    isThemeB ? 'bg-[#F8B800]' : 'bg-[#F8B800]/15'
+                  } rounded`}
+                  transition={{ type: 'spring', stiffness: 350, damping: 30 }}
+                />
+                {!isThemeB && (
+                  <motion.div
+                    layoutId="sidebar-active-indicator"
+                    className="absolute left-0 top-0 bottom-0 w-1 bg-[#F8B800] rounded-r-sm"
+                    transition={{ type: 'spring', stiffness: 350, damping: 30 }}
+                  />
+                )}
+              </>
+            )}
+            {isCollapsed ? (
+              <div className="w-5 h-5 flex items-center justify-center relative z-10">
+                <UserCog
+                  className={`w-4 h-4 shrink-0 ${
+                    activeNav === 'user-management'
+                      ? isThemeB
+                        ? 'text-[#262626]'
+                        : 'text-[#D97706]'
+                      : ''
+                  }`}
+                />
+              </div>
+            ) : (
+              <div className="flex items-center gap-3 relative z-10">
+                <UserCog
+                  className={`w-4 h-4 shrink-0 ${
+                    activeNav === 'user-management'
+                      ? isThemeB
+                        ? 'text-[#262626]'
+                        : 'text-[#D97706]'
+                      : ''
+                  }`}
+                />
+                <span>{dict.nav.userManagement}</span>
+              </div>
+            )}
+          </button>
         )}
       </nav>
     </aside>
