@@ -20,11 +20,15 @@ import {
   Building2,
   Calendar,
   User,
+  Eye,
+  Download,
 } from 'lucide-react';
 import { PurchaseOrderRecord, POStatus } from '../types/po';
 import { formatDateToDDMMYYYY, formatDateOnly } from '../utils/dateUtils';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
+import { useToast } from '../context/ToastContext';
+import { generateGebolErpXml } from '../utils/xmlGenerator';
 import { SearchableMultiSelect } from './SearchableMultiSelect';
 
 interface POQueueTableProps {
@@ -71,12 +75,35 @@ export const POQueueTable: React.FC<POQueueTableProps> = ({
   const { isThemeB } = useTheme();
   const { language, dict } = useLanguage();
   const isDe = language === 'de';
+  const toast = useToast();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
   const [selectedCustomers, setSelectedCustomers] = useState<string[]>([]);
   const [selectedUploadedBys, setSelectedUploadedBys] = useState<string[]>([]);
+
+  const handleQuickDownloadXml = (order: PurchaseOrderRecord) => {
+    const rawPoNumber = order.order.poNumber || order.id;
+    const poNumber = rawPoNumber.replace(/^#/, '');
+    const ediFilename = `EDI_${poNumber}.xml`;
+    const xmlContent = generateGebolErpXml(order);
+
+    const blob = new Blob([xmlContent], { type: 'text/xml;charset=iso-8859-1;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', ediFilename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    toast.success(
+      isDe ? 'XML heruntergeladen' : 'XML Downloaded',
+      isDe ? `${ediFilename} erfolgreich heruntergeladen.` : `${ediFilename} downloaded successfully.`
+    );
+  };
 
   // Only show .pdf, .xlsx, .xml files
   const validOrders = useMemo(() => {
@@ -716,27 +743,44 @@ export const POQueueTable: React.FC<POQueueTableProps> = ({
                           {isProcessing ? (
                             <button
                               disabled={true}
-                              title="Processing Purchase Order"
-                              className={`bg-gray-100 border border-gray-200 text-gray-400 font-medium ${
-                                isThemeB ? 'w-6 h-6 p-1 justify-center' : 'px-2.5 py-1 text-xs'
-                              } rounded flex items-center gap-1 cursor-not-allowed select-none`}
+                              title={dict.status.processing}
+                              className="p-1 rounded flex items-center justify-center cursor-not-allowed text-gray-400 select-none"
                             >
-                              {!isThemeB && <span>{dict.status.processing}</span>}
-                              <Clock className="w-3.5 h-3.5 text-gray-400 animate-spin" />
+                              <Clock className="w-4 h-4 stroke-[2.2] animate-spin" />
                             </button>
                           ) : order.status === 'Failed' ? (
                             null
                           ) : (
-                            <button
-                              onClick={() => onSelectPo(order)}
-                              title="Review Purchase Order"
-                              className={`bg-[#f7b611] hover:bg-[#e2a508] ${
-                                isThemeB ? 'text-black w-6 h-6 p-1 justify-center' : 'text-white px-2.5 py-1 text-xs'
-                              } font-semibold rounded flex items-center gap-1 cursor-pointer transition-colors shadow-2xs`}
-                            >
-                              {!isThemeB && <span className="text-white">{isDe ? 'Prüfen' : 'Review'}</span>}
-                              <ArrowRight className={`w-3.5 h-3.5 ${isThemeB ? 'text-black stroke-[2.5]' : 'text-white'}`} />
-                            </button>
+                            <>
+                              {/* Review Order Icon Button */}
+                              <button
+                                type="button"
+                                onClick={() => onSelectPo(order)}
+                                title={isDe ? 'Bestellung prüfen' : 'Review Purchase Order'}
+                                className={`p-1 rounded hover:bg-gray-100 transition-colors cursor-pointer flex items-center justify-center ${
+                                  isThemeB ? 'text-gray-300 hover:text-white hover:bg-white/10' : 'text-[#4f4f4e] hover:text-black'
+                                }`}
+                              >
+                                <Eye className="w-4 h-4 stroke-[2.5]" />
+                              </button>
+
+                              {/* Download XML Icon Button (Quick Access for 'XML Generated' status) */}
+                              {normalizeStatus(order.status) === 'XML Generated' && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleQuickDownloadXml(order);
+                                  }}
+                                  title={isDe ? 'XML herunterladen' : 'Download XML (EDI)'}
+                                  className={`p-1 rounded hover:bg-gray-100 transition-colors cursor-pointer flex items-center justify-center ${
+                                    isThemeB ? 'text-gray-300 hover:text-white hover:bg-white/10' : 'text-[#4f4f4e] hover:text-black'
+                                  }`}
+                                >
+                                  <Download className="w-4 h-4 stroke-[2.5]" />
+                                </button>
+                              )}
+                            </>
                           )}
                         </div>
                       </td>

@@ -254,6 +254,13 @@ export interface Translations {
       validationErrorsDetected: string;
       xmlGeneratedSuccess: string;
     };
+    unsavedChangesModal: {
+      title: string;
+      message: string;
+      saveAndGenerateBtn: string;
+      discardBtn: string;
+      keepEditingBtn: string;
+    };
   };
 
   // Upload Modal (POIntakeModal)
@@ -557,7 +564,7 @@ export const translations: Record<Language, Translations> = {
       breadcrumbsOrders: 'Orders',
       breadcrumbsDetail: 'Order Details',
       backToOrders: 'Back to Orders',
-      generateXmlBtn: 'Generate XML',
+      generateXmlBtn: 'Save and Generate XML',
       viewXmlBtn: 'View XML',
       reExtractBtn: 'Re-extract AI',
       autoFixBtn: 'Auto-Resolve Rules',
@@ -680,6 +687,13 @@ export const translations: Record<Language, Translations> = {
         quantityRequired: 'Quantity must be > 0',
         validationErrorsDetected: 'Please correct highlighted errors before generating XML.',
         xmlGeneratedSuccess: 'XML generated and downloaded successfully.',
+      },
+      unsavedChangesModal: {
+        title: 'Unsaved Changes',
+        message: 'You have unsaved changes on this order. Do you want to save and generate XML or discard your changes?',
+        saveAndGenerateBtn: 'Save and Generate XML',
+        discardBtn: 'Discard Changes',
+        keepEditingBtn: 'Keep Editing',
       },
     },
     uploadModal: {
@@ -971,7 +985,7 @@ export const translations: Record<Language, Translations> = {
       breadcrumbsOrders: 'Aufträge',
       breadcrumbsDetail: 'Auftragsdetails',
       backToOrders: 'Zurück zur Übersicht',
-      generateXmlBtn: 'XML generieren',
+      generateXmlBtn: 'Speichern & XML generieren',
       viewXmlBtn: 'XML anzeigen',
       reExtractBtn: 'KI-Analyse wiederholen',
       autoFixBtn: 'Regeln automatisch bereinigen',
@@ -1094,6 +1108,13 @@ export const translations: Record<Language, Translations> = {
         quantityRequired: 'Menge muss > 0 sein',
         validationErrorsDetected: 'Bitte beheben Sie die markierten Validierungsfehler vor der XML-Erstellung.',
         xmlGeneratedSuccess: 'XML erfolgreich generiert und heruntergeladen.',
+      },
+      unsavedChangesModal: {
+        title: 'Ungespeicherte Änderungen',
+        message: 'Sie haben ungespeicherte Änderungen an diesem Auftrag vorgenommen. Möchten Sie speichern & XML generieren oder die Änderungen verwerfen?',
+        saveAndGenerateBtn: 'Speichern & XML generieren',
+        discardBtn: 'Änderungen verwerfen',
+        keepEditingBtn: 'Weiter bearbeiten',
       },
     },
     uploadModal: {

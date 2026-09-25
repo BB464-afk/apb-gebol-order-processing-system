@@ -18,7 +18,7 @@ import { GlobalTooltip } from './components/GlobalTooltip';
 import { INITIAL_SAMPLE_POS } from './data/sampleOrders';
 import { PurchaseOrderRecord, BuyerObject, OrderObject, DeliveryObject, LineItem } from './types/po';
 import { getUserProfile, UserRole } from './types/user';
-import { ChevronRight, FileCode, Sparkles, AlertCircle, CheckCircle2, Download, Code2 } from 'lucide-react';
+import { ChevronRight, FileCode, Sparkles, AlertCircle, CheckCircle2, Download, Code2, X } from 'lucide-react';
 import { generateGebolErpXml } from './utils/xmlGenerator';
 import { useToast } from './context/ToastContext';
 import { useTheme } from './context/ThemeContext';
@@ -372,6 +372,66 @@ export default function App() {
     'user-management': dict.nav.userManagement,
   };
 
+  const [isOrderDirty, setIsOrderDirty] = useState<boolean>(false);
+  const [isDiscardPromptOpen, setIsDiscardPromptOpen] = useState<boolean>(false);
+  const [pendingNavAction, setPendingNavAction] = useState<(() => void) | null>(null);
+
+  const handleSafeNavigate = (action: () => void) => {
+    if (activeNav === 'orders' && processingSubView === 'detail' && isOrderDirty) {
+      setPendingNavAction(() => action);
+      setIsDiscardPromptOpen(true);
+    } else {
+      action();
+    }
+  };
+
+  const handleSaveAndGenerateFromParent = () => {
+    const rawOrderNo = currentPo.order.poNumber || currentPo.id;
+    const customerOrderNo = rawOrderNo.replace(/^#/, '');
+    const ediFilename = `EDI_${customerOrderNo}.xml`;
+
+    const xmlContent = generateGebolErpXml(currentPo);
+    const blob = new Blob([xmlContent], { type: 'text/xml;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', ediFilename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    const updatedPo: PurchaseOrderRecord = {
+      ...currentPo,
+      status: 'XML Generated',
+      completenessScore: 100,
+      exportedAt: new Date().toISOString().replace('T', ' ').substring(0, 19),
+      auditTrail: [
+        {
+          id: `at-${Date.now()}`,
+          timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
+          user: 'Operations Operator',
+          action: 'XML Generated & Exported',
+          details: `Saved changes & generated EDI XML (${ediFilename}) for ERP transmission.`,
+          category: 'Export',
+        },
+        ...currentPo.auditTrail,
+      ],
+    };
+
+    setOrders((prev) => prev.map((o) => (o.id === updatedPo.id ? updatedPo : o)));
+    setIsOrderDirty(false);
+    setIsDiscardPromptOpen(false);
+    toast.success(
+      'Saved & XML Generated Successfully',
+      `${ediFilename} downloaded.`
+    );
+    if (pendingNavAction) {
+      pendingNavAction();
+      setPendingNavAction(null);
+    }
+  };
+
   const handleNavigate = (item: NavItem) => {
     if (isNormalUser && item !== 'orders') {
       return;
@@ -444,7 +504,7 @@ export default function App() {
       {!isNormalUser && (
         <Sidebar
           activeNav={activeNav}
-          onNavigate={handleNavigate}
+          onNavigate={(item) => handleSafeNavigate(() => handleNavigate(item))}
           needsReviewCount={needsReviewCount}
           isCollapsed={isSidebarCollapsed}
           onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
@@ -472,7 +532,7 @@ export default function App() {
           userRole={userRole}
           isNormalUser={isNormalUser}
           onLogout={handleLogout}
-          onNavigateToEntity={handleNavigateToEntity}
+          onNavigateToEntity={(nav, poId) => handleSafeNavigate(() => handleNavigateToEntity(nav, poId))}
         />
 
         {/* 3. DYNAMIC MAIN CONTENT AREA */}
@@ -495,7 +555,7 @@ export default function App() {
               <div className="flex items-center justify-between py-0.5 min-h-[36px]">
                 <nav className="flex items-center space-x-1.5 text-[13px] text-gray-500 font-medium">
                   <button
-                    onClick={() => setProcessingSubView('queue')}
+                    onClick={() => handleSafeNavigate(() => setProcessingSubView('queue'))}
                     title={dict.orderDetail.backToOrders}
                     className="hover:text-[#1A1A1A] hover:underline cursor-pointer transition-colors"
                   >
@@ -511,12 +571,17 @@ export default function App() {
               {/* Unified Order Detail & Review Workspace */}
               <OrderDetailReviewWorkspace
                 po={currentPo}
-                onUpdatePo={(updated) =>
-                  setOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)))
-                }
+                onUpdatePo={(updated) => {
+                  setOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
+                  setIsOrderDirty(false);
+                }}
                 onOpenXmlModal={handleOpenXmlForOrder}
-                onBack={() => setProcessingSubView('queue')}
-                onNavigateToCustomerMaster={() => handleNavigate('customer-master')}
+                onBack={() => {
+                  setIsOrderDirty(false);
+                  setProcessingSubView('queue');
+                }}
+                onDirtyChange={setIsOrderDirty}
+                onNavigateToCustomerMaster={() => handleSafeNavigate(() => handleNavigate('customer-master'))}
               />
             </div>
           )}
@@ -543,6 +608,74 @@ export default function App() {
         onClose={() => setIsXmlModalOpen(false)}
         onTransmissionSuccess={handleTransmissionSuccess}
       />
+
+      {/* 🔹 UNSAVED CHANGES CONFIRMATION POPUP MODAL (App Navigation Level) */}
+      {isDiscardPromptOpen && (
+        <div
+          onClick={() => setIsDiscardPromptOpen(false)}
+          className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px] flex items-center justify-center p-4 animate-in fade-in duration-150"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-xl border border-gray-200 shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col"
+          >
+            <div className="p-5 flex items-start justify-between gap-3.5">
+              <div className="flex items-start gap-3.5">
+                <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center shrink-0 text-amber-600">
+                  <AlertCircle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-gray-900">
+                    {dict.orderDetail.unsavedChangesModal.title}
+                  </h3>
+                  <p className="text-xs text-gray-600 mt-1.5 leading-relaxed">
+                    {dict.orderDetail.unsavedChangesModal.message}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsDiscardPromptOpen(false);
+                  setPendingNavAction(null);
+                }}
+                className="text-gray-400 hover:text-gray-600 p-1 rounded-md hover:bg-gray-100 cursor-pointer transition-colors"
+                title={dict.common.close}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="bg-gray-50 px-5 py-3.5 border-t border-gray-200 flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsOrderDirty(false);
+                  setIsDiscardPromptOpen(false);
+                  toast.info(dict.orderDetail.unsavedChangesModal.discardBtn);
+                  if (pendingNavAction) {
+                    pendingNavAction();
+                    setPendingNavAction(null);
+                  }
+                }}
+                className="px-4 py-2 text-xs text-red-600 hover:bg-red-50 border border-red-200 rounded-lg font-semibold cursor-pointer transition-colors"
+              >
+                {dict.orderDetail.unsavedChangesModal.discardBtn}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  handleSaveAndGenerateFromParent();
+                }}
+                className="px-4 py-2 text-xs bg-[#f7b611] hover:bg-[#e2a508] text-white font-bold rounded-lg shadow-2xs cursor-pointer transition-colors flex items-center gap-1.5"
+              >
+                <FileCode className="w-3.5 h-3.5 text-white" />
+                <span>{dict.orderDetail.unsavedChangesModal.saveAndGenerateBtn}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* App-wide Themed Tooltip */}
       <GlobalTooltip />

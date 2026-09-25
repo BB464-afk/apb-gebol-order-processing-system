@@ -37,6 +37,7 @@ interface OrderDetailReviewWorkspaceProps {
   onOpenXmlModal?: (po: PurchaseOrderRecord) => void;
   onBack?: () => void;
   onNavigateToCustomerMaster?: () => void;
+  onDirtyChange?: (isDirty: boolean) => void;
 }
 
 export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProps> = ({
@@ -45,6 +46,7 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
   onOpenXmlModal,
   onBack,
   onNavigateToCustomerMaster,
+  onDirtyChange,
 }) => {
   const toast = useToast();
   const { language, dict } = useLanguage();
@@ -53,18 +55,19 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
   // Working draft state for all editable order data
   const [draftPo, setDraftPo] = useState<PurchaseOrderRecord>(po);
   const [hasAttemptedXml, setHasAttemptedXml] = useState<boolean>(false);
+  const [isUnsavedChangesModalOpen, setIsUnsavedChangesModalOpen] = useState<boolean>(false);
 
   // Synchronize draft state when the active PO prop changes
   useEffect(() => {
     setDraftPo(po);
     setHasAttemptedXml(false);
+    setIsUnsavedChangesModalOpen(false);
     setAdditionalDetailsText(formatInitialAdditionalDetails(po));
   }, [po]);
 
-  // Direct state updater that updates both local state and parent state
+  // Direct state updater that updates local draft state
   const handleUpdateField = (updated: PurchaseOrderRecord) => {
     setDraftPo(updated);
-    onUpdatePo(updated);
   };
 
   const isXmlGenerated = draftPo.status === 'Completed' || (draftPo.status as string) === 'XML Generated';
@@ -145,6 +148,26 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
 
   const isFieldEmpty = (val: string | undefined | null) => !val || !val.trim();
 
+  // Compute if there are unsaved edits
+  const isDirty = useMemo(() => {
+    return (
+      JSON.stringify(draftPo) !== JSON.stringify(po) ||
+      additionalDetailsText !== formatInitialAdditionalDetails(po)
+    );
+  }, [draftPo, po, additionalDetailsText]);
+
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
+
+  const handleCancel = () => {
+    if (isDirty) {
+      setIsUnsavedChangesModalOpen(true);
+    } else {
+      if (onBack) onBack();
+    }
+  };
+
   // Field validation flags
   const isCompanyNameInvalid = hasAttemptedXml && isFieldEmpty(draftPo.buyer.companyName);
   const isCustomerNumberInvalid = hasAttemptedXml && isFieldEmpty(draftPo.buyer.customerNumber);
@@ -158,7 +181,7 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
   const isDeliveryDateInvalid = hasAttemptedXml && isFieldEmpty(draftPo.delivery.requestedDeliveryDate);
 
   // Generate and Download XML directly (Acts as Save & Download)
-  const handleGenerateXml = () => {
+  const handleGenerateXml = (shouldNavigateBackAfter = false) => {
     // Perform full validation check
     const hasInvalidBuyer =
       isFieldEmpty(draftPo.buyer.companyName) ||
@@ -196,7 +219,7 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
           ? dict.orderDetail.validationMessages.validationErrorsDetected
           : dict.orderDetail.validationMessages.validationErrorsDetected
       );
-      return;
+      return false;
     }
 
     const rawOrderNo = draftPo.order.poNumber || draftPo.id;
@@ -217,9 +240,13 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
 
-    // 3. Update Order Status to XML Generated
+    // 3. Update Order Status to XML Generated & Commit to parent
     const updatedPo: PurchaseOrderRecord = {
       ...draftPo,
+      order: {
+        ...draftPo.order,
+        customerNotes: additionalDetailsText,
+      },
       status: 'XML Generated',
       completenessScore: 100,
       exportedAt: new Date().toISOString().replace('T', ' ').substring(0, 19),
@@ -229,18 +256,25 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
           timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
           user: 'Operations Operator',
           action: 'XML Generated & Exported',
-          details: `Generated EDI XML (${ediFilename}) for ERP transmission.`,
+          details: `Saved changes & generated EDI XML (${ediFilename}) for ERP transmission.`,
           category: 'Export',
         },
         ...draftPo.auditTrail,
       ],
     };
 
-    handleUpdateField(updatedPo);
+    setDraftPo(updatedPo);
+    onUpdatePo(updatedPo);
     toast.success(
-      isDe ? 'XML erfolgreich generiert' : 'XML Generated Successfully',
+      isDe ? 'XML erfolgreich generiert' : 'Saved & XML Generated Successfully',
       `${ediFilename} ${isDe ? 'wurde heruntergeladen.' : 'downloaded.'}`
     );
+
+    if (shouldNavigateBackAfter) {
+      setIsUnsavedChangesModalOpen(false);
+      if (onBack) onBack();
+    }
+    return true;
   };
 
   // Direct line item field edit
@@ -454,21 +488,32 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
           </p>
         </div>
 
-        {/* Right: Action Buttons (Generate XML - Always Enabled) */}
+        {/* Right: Action Buttons (Cancel + Save and Generate XML) */}
         <div className="flex items-center gap-2">
+          {/* Cancel Button */}
           <button
             type="button"
-            onClick={handleGenerateXml}
+            onClick={handleCancel}
+            title={dict.common.cancel}
+            className="px-3.5 py-1.5 border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 font-semibold rounded text-xs flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
+          >
+            <span>{dict.common.cancel}</span>
+          </button>
+
+          {/* Save and Generate XML Button */}
+          <button
+            type="button"
+            onClick={() => handleGenerateXml(false)}
             title={
-              isXmlGenerated
-                ? (isDe ? 'ERP-XML erneut herunterladen' : 'Re-download ERP XML')
-                : (isDe ? 'ERP-XML generieren und herunterladen' : 'Generate and download ERP XML')
+              isDe
+                ? 'Bestelländerungen speichern und ERP-XML generieren'
+                : 'Save order changes and generate ERP XML'
             }
             className="bg-[#f7b611] hover:bg-[#e2a508] text-white font-semibold px-3.5 py-1.5 rounded text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
           >
             <FileCode className="w-3.5 h-3.5 text-white" />
             <span className="text-white font-semibold">
-              {isXmlGenerated ? (isDe ? 'XML herunterladen' : 'Download XML') : dict.orderDetail.generateXmlBtn}
+              {dict.orderDetail.generateXmlBtn}
             </span>
           </button>
         </div>
@@ -1600,6 +1645,71 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>{isDe ? 'Position hinzufügen' : 'Add Position'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🔹 UNSAVED CHANGES CONFIRMATION POPUP MODAL */}
+      {isUnsavedChangesModalOpen && (
+        <div
+          onClick={() => setIsUnsavedChangesModalOpen(false)}
+          className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px] flex items-center justify-center p-4 animate-in fade-in duration-150"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-xl border border-gray-200 shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col"
+          >
+            {/* Modal Header */}
+            <div className="p-5 flex items-start justify-between gap-3.5">
+              <div className="flex items-start gap-3.5">
+                <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center shrink-0 text-amber-600">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-gray-900">
+                    {dict.orderDetail.unsavedChangesModal.title}
+                  </h3>
+                  <p className="text-xs text-gray-600 mt-1.5 leading-relaxed">
+                    {dict.orderDetail.unsavedChangesModal.message}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsUnsavedChangesModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 p-1 rounded-md hover:bg-gray-100 cursor-pointer transition-colors"
+                title={dict.common.close}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Footer Actions - Discard on left, Save & Generate on right */}
+            <div className="bg-gray-50 px-5 py-3.5 border-t border-gray-200 flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setDraftPo(po);
+                  setAdditionalDetailsText(formatInitialAdditionalDetails(po));
+                  setIsUnsavedChangesModalOpen(false);
+                  toast.info(isDe ? 'Änderungen verworfen' : 'Changes discarded');
+                  if (onBack) onBack();
+                }}
+                className="px-4 py-2 text-xs text-red-600 hover:bg-red-50 border border-red-200 rounded-lg font-semibold cursor-pointer transition-colors"
+              >
+                {dict.orderDetail.unsavedChangesModal.discardBtn}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  handleGenerateXml(true);
+                }}
+                className="px-4 py-2 text-xs bg-[#f7b611] hover:bg-[#e2a508] text-white font-bold rounded-lg shadow-2xs cursor-pointer transition-colors flex items-center gap-1.5"
+              >
+                <FileCode className="w-3.5 h-3.5 text-white" />
+                <span>{dict.orderDetail.unsavedChangesModal.saveAndGenerateBtn}</span>
               </button>
             </div>
           </div>
