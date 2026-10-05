@@ -343,6 +343,7 @@ export interface Translations {
     title: string;
     subtitle: string;
     searchPlaceholder: string;
+    addUserBtn: string;
     filterBtn: string;
     importBtn: string;
     exportBtn: string;
@@ -356,6 +357,29 @@ export interface Translations {
       normalUser: string;
     };
     changeRoleBtn: string;
+    deleteBtn: string;
+    addUserModal: {
+      title: string;
+      emailLabel: string;
+      emailPlaceholder: string;
+      roleLabel: string;
+      infoNotice: string;
+      cancelBtn: string;
+      createBtn: string;
+      successToast: string;
+      duplicateError: string;
+      invalidEmailError: string;
+    };
+    deleteModal: {
+      title: string;
+      confirmPrompt: string;
+      warningText: string;
+      cancelBtn: string;
+      confirmBtn: string;
+      successToast: string;
+      selfDeleteBlocked: string;
+      lastSuperUserBlocked: string;
+    };
     changeRoleModal: {
       title: string;
       emailLabel: string;
@@ -394,6 +418,8 @@ export interface Translations {
       importBtn: string;
       successToast: string;
       errorNoValidRows: string;
+      errorNoSuperUser: string;
+      errorOnlyXlsx: string;
     };
     exportSuccessToast: string;
   };
@@ -441,6 +467,23 @@ export interface Translations {
     transmitting: string;
     transmittedSuccess: string;
     closeBtn: string;
+  };
+
+  // Login Screen
+  login: {
+    signIn: string;
+    subtitle: string;
+    emailAddress: string;
+    password: string;
+    emailPlaceholder: string;
+    passwordPlaceholder: string;
+    emailRequired: string;
+    emailInvalid: string;
+    passwordRequired: string;
+    signInBtn: string;
+    signInWithMicrosoft: string;
+    ssoNotice: string;
+    copyright: string;
   };
 }
 
@@ -769,6 +812,7 @@ export const translations: Record<Language, Translations> = {
       title: 'User Management',
       subtitle: 'Manage application users and their roles.',
       searchPlaceholder: 'Search by email address or role...',
+      addUserBtn: 'Add User',
       filterBtn: 'Filter',
       importBtn: 'Import',
       exportBtn: 'Export',
@@ -782,6 +826,29 @@ export const translations: Record<Language, Translations> = {
         normalUser: 'Normal User',
       },
       changeRoleBtn: 'Change Role',
+      deleteBtn: 'Delete',
+      addUserModal: {
+        title: 'Add New User',
+        emailLabel: 'Email Address',
+        emailPlaceholder: 'e.g. name@gebol.at',
+        roleLabel: 'Role',
+        infoNotice: 'No password required. On creation, the system will send an account-creation invitation link to the user email.',
+        cancelBtn: 'Cancel',
+        createBtn: 'Create User',
+        successToast: 'User created successfully. Account-creation email link has been sent.',
+        duplicateError: 'A user with this email address already exists.',
+        invalidEmailError: 'Please enter a valid email address.',
+      },
+      deleteModal: {
+        title: 'Delete User',
+        confirmPrompt: 'Are you sure you want to delete user {email}?',
+        warningText: 'This action cannot be undone and will permanently remove this user account.',
+        cancelBtn: 'Cancel',
+        confirmBtn: 'Delete User',
+        successToast: 'User has been successfully deleted.',
+        selfDeleteBlocked: 'You cannot delete your own account.',
+        lastSuperUserBlocked: 'Cannot delete the only Super User. The system must retain at least one Super User.',
+      },
       changeRoleModal: {
         title: 'Change User Role',
         emailLabel: 'Email Address',
@@ -800,26 +867,28 @@ export const translations: Record<Language, Translations> = {
       },
       importModal: {
         title: 'Import User Master Dataset',
-        subtitle: 'Upload an Excel (.xlsx, .xls) or CSV file containing user email addresses and assigned roles.',
-        downloadTemplate: 'Download Sample Template',
-        selectPrompt: 'Select or drag an Excel spreadsheet to parse:',
-        clickToSelect: 'Click here to select an Excel / CSV file',
+        subtitle: 'Upload an Excel (.xlsx) file containing Email and Role columns.',
+        downloadTemplate: 'Download Sample Template (.xlsx)',
+        selectPrompt: 'Select or drag an Excel spreadsheet (.xlsx only) to parse:',
+        clickToSelect: 'Click here to select an Excel (.xlsx) file',
         selected: 'Selected:',
-        supportedFormat: 'Supported format: Excel (.xlsx, .xls) / CSV',
-        mandatoryNotice: 'Mandatory fields: Email Address and Role.',
+        supportedFormat: 'Supported format: Excel (.xlsx only)',
+        mandatoryNotice: 'Mandatory columns: Email (or Email Address) and Role. Import is a full replacement.',
         parsePreviewBtn: 'Parse & Preview Data',
-        previewNotice: '* Important Notice: Importing the following data will replace/update records in User Management.',
-        previewSubNotice: 'Please review the validated records carefully before proceeding. All records will be imported upon saving.',
+        previewNotice: '* Full Replacement: Importing this file will replace all existing users once validated.',
+        previewSubNotice: 'If any row fails validation, your existing user list remains untouched. File must include at least one Super User.',
         totalParsed: 'Total Parsed:',
         valid: 'Valid',
         invalid: 'Invalid',
         backToFileSelection: 'Back to File Selection',
-        saveAndReplace: 'Save and Update User Master',
-        saveDisabledWarning: 'Save button is disabled: Mandatory fields are missing or invalid email formats exist in the file.',
+        saveAndReplace: 'Save & Replace All Users',
+        saveDisabledWarning: 'Replacement disabled: Validation errors detected. All rows must be valid and contain at least one Super User.',
         cancelBtn: 'Cancel',
         importBtn: 'Import Users',
-        successToast: 'User dataset imported successfully.',
+        successToast: 'User master successfully replaced with imported dataset.',
         errorNoValidRows: 'No valid user records found in the uploaded file.',
+        errorNoSuperUser: 'Validation failed: The imported file must contain at least one Super User.',
+        errorOnlyXlsx: 'Only Excel (.xlsx) files are accepted for user import.',
       },
       exportSuccessToast: 'User list exported successfully.',
     },
@@ -864,6 +933,21 @@ export const translations: Record<Language, Translations> = {
       transmitting: 'Transmitting to SAP Gateway...',
       transmittedSuccess: 'Transmitted Successfully',
       closeBtn: 'Close',
+    },
+    login: {
+      signIn: 'Sign In',
+      subtitle: 'Sign in to your GEBOL account',
+      emailAddress: 'Email Address',
+      password: 'Password',
+      emailPlaceholder: 'name@gebol.at',
+      passwordPlaceholder: '••••••••••••',
+      emailRequired: 'Please enter your email address.',
+      emailInvalid: 'Please enter a valid email address.',
+      passwordRequired: 'Please enter your password.',
+      signInBtn: 'Sign In',
+      signInWithMicrosoft: 'Sign in with Microsoft',
+      ssoNotice: 'Secure Single Sign-On for GEBOL enterprise accounts',
+      copyright: 'All Rights Reserved',
     },
   },
   de: {
@@ -1190,6 +1274,7 @@ export const translations: Record<Language, Translations> = {
       title: 'Benutzerverwaltung',
       subtitle: 'Verwalten Sie Anwendungsbenutzer und deren Rollen.',
       searchPlaceholder: 'Nach E-Mail-Adresse oder Rolle suchen...',
+      addUserBtn: 'Benutzer hinzufügen',
       filterBtn: 'Filter',
       importBtn: 'Importieren',
       exportBtn: 'Exportieren',
@@ -1203,6 +1288,29 @@ export const translations: Record<Language, Translations> = {
         normalUser: 'Standardbenutzer',
       },
       changeRoleBtn: 'Rolle ändern',
+      deleteBtn: 'Löschen',
+      addUserModal: {
+        title: 'Neuen Benutzer hinzufügen',
+        emailLabel: 'E-Mail-Adresse',
+        emailPlaceholder: 'z.B. name@gebol.at',
+        roleLabel: 'Rolle',
+        infoNotice: 'Kein Passwort erforderlich. Bei der Erstellung sendet das System einen Einladungslink zur Kontoerstellung an die E-Mail-Adresse.',
+        cancelBtn: 'Abbrechen',
+        createBtn: 'Benutzer erstellen',
+        successToast: 'Benutzer erfolgreich erstellt. Kontoerstellungslink wurde versendet.',
+        duplicateError: 'Ein Benutzer mit dieser E-Mail-Adresse existiert bereits.',
+        invalidEmailError: 'Bitte geben Sie eine gültige E-Mail-Adresse ein.',
+      },
+      deleteModal: {
+        title: 'Benutzer löschen',
+        confirmPrompt: 'Sind Sie sicher, dass Sie den Benutzer {email} löschen möchten?',
+        warningText: 'Diese Aktion kann nicht rückgängig gemacht werden und entfernt dieses Benutzerkonto dauerhaft.',
+        cancelBtn: 'Abbrechen',
+        confirmBtn: 'Benutzer löschen',
+        successToast: 'Benutzer wurde erfolgreich gelöscht.',
+        selfDeleteBlocked: 'Sie können Ihr eigenes Konto nicht löschen.',
+        lastSuperUserBlocked: 'Der einzige Superuser kann nicht gelöscht werden. Das System benötigt mindestens einen Superuser.',
+      },
       changeRoleModal: {
         title: 'Benutzerrolle ändern',
         emailLabel: 'E-Mail-Adresse',
@@ -1221,26 +1329,28 @@ export const translations: Record<Language, Translations> = {
       },
       importModal: {
         title: 'Benutzerstamm-Datensatz importieren',
-        subtitle: 'Laden Sie eine Excel- (.xlsx, .xls) oder CSV-Datei mit E-Mail-Adressen und Rollen hoch.',
-        downloadTemplate: 'Beispielvorlage herunterladen',
-        selectPrompt: 'Wählen oder ziehen Sie eine Excel-/CSV-Tabelle zum Verarbeiten:',
-        clickToSelect: 'Hier klicken, um eine Excel- / CSV-Datei auszuwählen',
+        subtitle: 'Laden Sie eine Excel-Datei (.xlsx) mit den Spalten Email und Role hoch.',
+        downloadTemplate: 'Beispielvorlage herunterladen (.xlsx)',
+        selectPrompt: 'Wählen oder ziehen Sie eine Excel-Tabelle (.xlsx) zum Verarbeiten:',
+        clickToSelect: 'Hier klicken, um eine Excel-Datei (.xlsx) auszuwählen',
         selected: 'Ausgewählt:',
-        supportedFormat: 'Unterstütztes Format: Excel (.xlsx, .xls) / CSV',
-        mandatoryNotice: 'Pflichtfelder: E-Mail-Adresse und Rolle.',
+        supportedFormat: 'Unterstütztes Format: Excel (.xlsx)',
+        mandatoryNotice: 'Pflichtspalten: Email und Role. Der Import ersetzt alle bestehenden Benutzer vollständig.',
         parsePreviewBtn: 'Daten verarbeiten & Vorschau',
-        previewNotice: '* Wichtiger Hinweis: Der Import aktualisiert/ersetzt Datensätze in der Benutzerverwaltung.',
-        previewSubNotice: 'Bitte überprüfen Sie die validierten Datensätze sorgfältig. Alle Datensätze werden beim Speichern übernommen.',
+        previewNotice: '* Vollständiger Ersatz: Der Import ersetzt nach erfolgreicher Validierung alle Benutzer.',
+        previewSubNotice: 'Falls eine Zeile ungültig ist, bleibt die bestehende Benutzerliste unverändert. Mindestens ein Superuser erforderlich.',
         totalParsed: 'Gesamt verarbeitet:',
         valid: 'Gültig',
         invalid: 'Ungültig',
         backToFileSelection: 'Zurück zur Dateiauswahl',
-        saveAndReplace: 'Benutzerstamm speichern & aktualisieren',
-        saveDisabledWarning: 'Speichern deaktiviert: Pflichtfelder fehlen oder ungültige E-Mail-Formate in der Datei.',
+        saveAndReplace: 'Alle Benutzer ersetzen & speichern',
+        saveDisabledWarning: 'Speichern deaktiviert: Validierungsfehler erkannt. Alle Zeilen müssen gültig sein und mindestens ein Superuser enthalten sein.',
         cancelBtn: 'Abbrechen',
         importBtn: 'Benutzer importieren',
-        successToast: 'Benutzerdaten erfolgreich importiert.',
+        successToast: 'Benutzerstamm erfolgreich durch Importdatei ersetzt.',
         errorNoValidRows: 'Keine gültigen Benutzerdatensätze in der hochgeladenen Datei gefunden.',
+        errorNoSuperUser: 'Validierung fehlgeschlagen: Die Importdatei muss mindestens einen Superuser enthalten.',
+        errorOnlyXlsx: 'Nur Excel-Dateien (.xlsx) werden für den Benutzerimport akzeptiert.',
       },
       exportSuccessToast: 'Benutzerliste erfolgreich exportiert.',
     },
@@ -1285,6 +1395,21 @@ export const translations: Record<Language, Translations> = {
       transmitting: 'Wird an SAP Gateway übertragen...',
       transmittedSuccess: 'Erfolgreich übertragen',
       closeBtn: 'Schließen',
+    },
+    login: {
+      signIn: 'Anmelden',
+      subtitle: 'Melden Sie sich bei Ihrem GEBOL-Konto an',
+      emailAddress: 'E-Mail-Adresse',
+      password: 'Passwort',
+      emailPlaceholder: 'name@gebol.at',
+      passwordPlaceholder: '••••••••••••',
+      emailRequired: 'Bitte geben Sie Ihre E-Mail-Adresse ein.',
+      emailInvalid: 'Bitte geben Sie eine gültige E-Mail-Adresse ein.',
+      passwordRequired: 'Bitte geben Sie Ihr Passwort ein.',
+      signInBtn: 'Anmelden',
+      signInWithMicrosoft: 'Mit Microsoft anmelden',
+      ssoNotice: 'Sichere Einmalanmeldung (SSO) für GEBOL-Unternehmenskonten',
+      copyright: 'Alle Rechte vorbehalten',
     },
   },
 };

@@ -348,9 +348,10 @@ export default function App() {
     toast.warning('Order Deleted', `Order ${id} was removed.`);
   };
 
-  const handleLogin = (email: string, role: UserRole) => {
-    setUserEmail(email);
-    setUserRole(role);
+  const handleLogin = (email?: string, role?: UserRole) => {
+    const profile = getUserProfile(email, role);
+    setUserEmail(profile.email);
+    setUserRole(profile.role);
     setIsAuthenticated(true);
     setActiveNav('orders');
     setProcessingSubView('queue');
@@ -590,7 +591,9 @@ export default function App() {
 
           {activeNav === 'article-master' && userProfile.canAccessMasterData && <ArticleMasterView />}
 
-          {activeNav === 'user-management' && userProfile.canAccessMasterData && <UserManagementView />}
+          {activeNav === 'user-management' && userProfile.canAccessMasterData && (
+            <UserManagementView currentUserEmail={userEmail || 'lucas.platzer@gebol.at'} />
+          )}
         </main>
       </div>
 

@@ -13,6 +13,8 @@ import {
   X,
   Check,
   Edit2,
+  Trash2,
+  UserPlus,
   AlertTriangle,
   FileSpreadsheet,
   ChevronLeft,
@@ -21,12 +23,17 @@ import {
   CheckCircle2,
   XCircle,
   ArrowLeft,
+  ShieldAlert,
 } from 'lucide-react';
 
 export interface UserRecord {
   id: string;
   email: string;
   role: 'Super User' | 'Normal User';
+}
+
+export interface UserManagementViewProps {
+  currentUserEmail?: string;
 }
 
 interface ImportedUserPreview {
@@ -60,7 +67,9 @@ const DEFAULT_USER_IMPORT_ROWS = [
   ['sophie.leitner@gebol.at', 'Normal User'],
 ];
 
-export const UserManagementView: React.FC = () => {
+export const UserManagementView: React.FC<UserManagementViewProps> = ({
+  currentUserEmail = 'lucas.platzer@gebol.at',
+}) => {
   const toast = useToast();
   const { addNotification } = useNotifications();
   const { isThemeB } = useTheme();
@@ -77,6 +86,15 @@ export const UserManagementView: React.FC = () => {
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [tempRoleFilter, setTempRoleFilter] = useState<'all' | 'Super User' | 'Normal User'>('all');
 
+  // Add User Modal State
+  const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
+  const [newEmail, setNewEmail] = useState('');
+  const [newRole, setNewRole] = useState<'Super User' | 'Normal User'>('Normal User');
+  const [emailError, setEmailError] = useState('');
+
+  // Delete User Modal State
+  const [userToDelete, setUserToDelete] = useState<UserRecord | null>(null);
+
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
@@ -85,7 +103,7 @@ export const UserManagementView: React.FC = () => {
   const [userToChangeRole, setUserToChangeRole] = useState<UserRecord | null>(null);
   const [selectedNewRole, setSelectedNewRole] = useState<'Super User' | 'Normal User'>('Normal User');
 
-  // Import Modal State (2-step workflow identical to Article Master)
+  // Import Modal State (Strictly .xlsx full replacement)
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [hasParsedImport, setHasParsedImport] = useState(false);
   const [selectedFileName, setSelectedFileName] = useState('');
@@ -113,6 +131,103 @@ export const UserManagementView: React.FC = () => {
     const start = (currentPage - 1) * pageSize;
     return filteredUsers.slice(start, start + pageSize);
   }, [filteredUsers, currentPage, pageSize]);
+
+  // 🔹 Handlers for Add User
+  const handleOpenAddUserModal = () => {
+    setNewEmail('');
+    setNewRole('Normal User');
+    setEmailError('');
+    setIsAddUserModalOpen(true);
+  };
+
+  const handleCreateUser = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmedEmail = newEmail.trim().toLowerCase();
+
+    if (!trimmedEmail) {
+      setEmailError(dict.userManagement.addUserModal.invalidEmailError);
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      setEmailError(dict.userManagement.addUserModal.invalidEmailError);
+      return;
+    }
+
+    if (users.some((u) => u.email.toLowerCase() === trimmedEmail)) {
+      setEmailError(dict.userManagement.addUserModal.duplicateError);
+      return;
+    }
+
+    const newUserRecord: UserRecord = {
+      id: `usr-${Date.now()}`,
+      email: trimmedEmail,
+      role: newRole,
+    };
+
+    setUsers((prev) => [newUserRecord, ...prev]);
+    setIsAddUserModalOpen(false);
+    setNewEmail('');
+    setNewRole('Normal User');
+    setEmailError('');
+
+    toast.success(
+      dict.userManagement.addUserModal.title,
+      dict.userManagement.addUserModal.successToast
+    );
+
+    addNotification({
+      scenario: 'master_data_upload',
+      title: isDe ? 'Neuer Benutzer hinzugefügt' : 'New User Added',
+      message: isDe
+        ? `Kontoerstellungslink wurde per E-Mail an ${trimmedEmail} gesendet (${newRole}).`
+        : `Account-creation invitation link has been sent to ${trimmedEmail} (${newRole}).`,
+      severity: 'success',
+      relatedEntityId: trimmedEmail,
+      relatedEntityType: 'user_management',
+      actionLabel: 'View Users',
+      actionLabelDe: 'Benutzer anzeigen',
+      actionNav: 'user-management',
+    });
+  };
+
+  // 🔹 Handlers for Delete User
+  const handleInitiateDelete = (user: UserRecord) => {
+    const isSelf = user.email.toLowerCase() === (currentUserEmail || '').trim().toLowerCase();
+    const superUsersCount = users.filter((u) => u.role === 'Super User').length;
+    const isLastSuperUser = user.role === 'Super User' && superUsersCount <= 1;
+
+    if (isSelf) {
+      toast.error(
+        dict.userManagement.deleteModal.title,
+        dict.userManagement.deleteModal.selfDeleteBlocked
+      );
+      return;
+    }
+
+    if (isLastSuperUser) {
+      toast.error(
+        dict.userManagement.deleteModal.title,
+        dict.userManagement.deleteModal.lastSuperUserBlocked
+      );
+      return;
+    }
+
+    setUserToDelete(user);
+  };
+
+  const handleConfirmDelete = () => {
+    if (!userToDelete) return;
+    const email = userToDelete.email;
+    setUsers((prev) => prev.filter((u) => u.id !== userToDelete.id));
+    setUserToDelete(null);
+
+    toast.success(
+      dict.userManagement.deleteModal.title,
+      `${email} ${isDe ? 'wurde erfolgreich gelöscht.' : 'was deleted successfully.'}`
+    );
+  };
 
   // 🔹 Handlers for Filter Modal
   const handleOpenFilterModal = () => {
@@ -142,6 +257,19 @@ export const UserManagementView: React.FC = () => {
   const handleSaveRoleChange = (e: React.FormEvent) => {
     e.preventDefault();
     if (!userToChangeRole) return;
+
+    // Check if downgrading the last super user
+    if (
+      userToChangeRole.role === 'Super User' &&
+      selectedNewRole === 'Normal User' &&
+      users.filter((u) => u.role === 'Super User').length <= 1
+    ) {
+      toast.error(
+        dict.userManagement.changeRoleModal.title,
+        dict.userManagement.deleteModal.lastSuperUserBlocked
+      );
+      return;
+    }
 
     setUsers((prev) =>
       prev.map((u) => (u.id === userToChangeRole.id ? { ...u, role: selectedNewRole } : u))
@@ -186,26 +314,27 @@ export const UserManagementView: React.FC = () => {
   const handleDownloadSampleTemplate = () => {
     const wb = XLSX.utils.book_new();
     const wsData = [
-      ['Email Address', 'Role'],
+      ['Email', 'Role'],
       ['lucas.platzer@gebol.at', 'Super User'],
       ['bhoomi.barot@gebol.at', 'Super User'],
       ['stefan.gruber@gebol.at', 'Normal User'],
       ['maria.huber@gebol.at', 'Normal User'],
       ['alexander.weber@gebol.at', 'Normal User'],
+      ['sophie.leitner@gebol.at', 'Normal User'],
     ];
     const ws = XLSX.utils.aoa_to_sheet(wsData);
     XLSX.utils.book_append_sheet(wb, ws, 'Users');
     XLSX.writeFile(wb, 'GEBOL_User_Template.xlsx');
   };
 
-  // 🔹 Process Raw Rows for Import
+  // 🔹 Process Raw Rows for Import (Strictly Email & Role columns)
   const processImportRows = (rows: any[][], fileName: string) => {
     if (!rows || rows.length <= 1) {
       setImportPreviews([]);
       return;
     }
 
-    // Skip header row
+    // Skip header row (Header: Email / Email Address, Role)
     const dataRows = rows.slice(1);
     const seenEmails = new Set<string>();
 
@@ -243,77 +372,69 @@ export const UserManagementView: React.FC = () => {
       })
       .filter((p): p is ImportedUserPreview => p !== null);
 
+    // Verify at least one Super User exists in the imported valid rows
+    const validRows = previews.filter((p) => p.isValid);
+    const hasSuperUser = validRows.some((p) => p.normalizedRole === 'Super User');
+    if (validRows.length > 0 && !hasSuperUser) {
+      previews.forEach((p) => {
+        p.isValid = false;
+        p.errors.push(
+          isDe
+            ? 'Importdatei muss mindestens einen Superuser enthalten'
+            : 'Import file must contain at least one Super User'
+        );
+      });
+    }
+
     setImportPreviews(previews);
     setSelectedFileName(fileName);
     setHasParsedImport(true);
   };
 
-  // 🔹 Parse CSV / Text / Excel Import Trigger
-  const handleParseImport = () => {
-    if (selectedFileName && selectedFileName.endsWith('.csv') && importText.trim()) {
-      const lines = importText.split('\n').map((l) => l.trim()).filter(Boolean);
-      const rows = lines.map((line) => {
-        return line.includes('\t')
-          ? line.split('\t')
-          : line.includes(';')
-          ? line.split(';')
-          : line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
-      });
-      processImportRows(rows, selectedFileName);
-    } else {
-      processImportRows(DEFAULT_USER_IMPORT_ROWS, selectedFileName || 'GEBOL_User_Template.xlsx');
-    }
-  };
-
-  // 🔹 File Upload Handler for Import (supporting .xlsx, .xls, and .csv)
+  // 🔹 File Upload Handler for Import (Strictly .xlsx)
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setSelectedFileName(file.name);
-    const isExcel = file.name.endsWith('.xlsx') || file.name.endsWith('.xls');
-
-    if (isExcel) {
-      const reader = new FileReader();
-      reader.onload = (evt) => {
-        try {
-          const data = new Uint8Array(evt.target?.result as ArrayBuffer);
-          const workbook = XLSX.read(data, { type: 'array' });
-          const firstSheetName = workbook.SheetNames[0];
-          const worksheet = workbook.Sheets[firstSheetName];
-          const rows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-          processImportRows(rows, file.name);
-        } catch (err) {
-          toast.error('File Error', 'Failed to parse Excel spreadsheet.');
-        }
-      };
-      reader.readAsArrayBuffer(file);
-    } else {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const content = event.target?.result as string;
-        if (content) {
-          setImportText(content);
-          const lines = content.split('\n').map((l) => l.trim()).filter(Boolean);
-          const rows = lines.map((line) => {
-            return line.includes('\t')
-              ? line.split('\t')
-              : line.includes(';')
-              ? line.split(';')
-              : line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
-          });
-          processImportRows(rows, file.name);
-        }
-      };
-      reader.readAsText(file);
+    if (!file.name.toLowerCase().endsWith('.xlsx')) {
+      toast.error('Invalid File', dict.userManagement.importModal.errorOnlyXlsx);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
     }
+
+    setSelectedFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const data = new Uint8Array(evt.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        const rows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        processImportRows(rows, file.name);
+      } catch (err) {
+        toast.error('File Error', 'Failed to parse Excel spreadsheet (.xlsx).');
+      }
+    };
+    reader.readAsArrayBuffer(file);
   };
 
-  // 🔹 Confirm and Apply Import
+  // 🔹 Parse Excel Import Trigger
+  const handleParseImport = () => {
+    processImportRows(DEFAULT_USER_IMPORT_ROWS, selectedFileName || 'GEBOL_User_Template.xlsx');
+  };
+
+  // 🔹 Confirm and Apply Import (Full Atomic Replacement)
   const handleConfirmImport = () => {
     const hasInvalid = importPreviews.some((p) => !p.isValid);
-    if (hasInvalid || importPreviews.length === 0) {
-      toast.error('Import Failed', dict.userManagement.importModal.errorNoValidRows);
+    const hasSuperUser = importPreviews.some((p) => p.isValid && p.normalizedRole === 'Super User');
+
+    if (hasInvalid || importPreviews.length === 0 || !hasSuperUser) {
+      if (!hasSuperUser && importPreviews.length > 0) {
+        toast.error('Import Failed', dict.userManagement.importModal.errorNoSuperUser);
+      } else {
+        toast.error('Import Failed', dict.userManagement.importModal.errorNoValidRows);
+      }
       return;
     }
 
@@ -323,7 +444,7 @@ export const UserManagementView: React.FC = () => {
       role: r.normalizedRole,
     }));
 
-    // REPLACES/UPDATES user list with imported data
+    // Full replacement: replaces existing user list with imported data
     setUsers(newRecords);
     setIsImportModalOpen(false);
     setHasParsedImport(false);
@@ -340,8 +461,8 @@ export const UserManagementView: React.FC = () => {
       scenario: 'master_data_upload',
       title: isDe ? 'Benutzerstamm aktualisiert' : 'User Master Upload',
       message: isDe
-        ? `${newRecords.length} Benutzer wurden erfolgreich über die Vorlage importiert.`
-        : `${newRecords.length} users were successfully updated via template import.`,
+        ? `${newRecords.length} Benutzer wurden erfolgreich über die XLSX-Vorlage importiert (Vollständiger Ersatz).`
+        : `${newRecords.length} users were successfully updated via XLSX template import (Full Replacement).`,
       severity: 'success',
       relatedEntityId: 'User Management',
       relatedEntityType: 'user_management',
@@ -366,7 +487,7 @@ export const UserManagementView: React.FC = () => {
           </p>
         </div>
 
-        {/* Top Right Actions: Search, Filter, Import, Export */}
+        {/* Top Right Actions: Search, Filter, Import, Export, Add User */}
         <div className="flex items-center gap-2">
           {/* Expandable Search Input */}
           <div className="relative flex items-center">
@@ -474,8 +595,20 @@ export const UserManagementView: React.FC = () => {
           >
             <Upload className="w-4 h-4 text-blue-600" />
           </button>
+
+          {/* Add New User Button (Placed Last) */}
+          <button
+            type="button"
+            onClick={handleOpenAddUserModal}
+            title={dict.userManagement.addUserBtn}
+            className="px-3 py-1.5 bg-[#f7b611] hover:bg-[#e2a508] text-white font-semibold rounded text-xs flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
+          >
+            <UserPlus className="w-4 h-4 text-white" />
+            <span>{dict.userManagement.addUserBtn}</span>
+          </button>
         </div>
       </div>
+
 
       {/* 🔹 2. ACTIVE FILTERS CHIPS BAR */}
       {(roleFilter !== 'all' || searchTerm) && (
@@ -580,6 +713,9 @@ export const UserManagementView: React.FC = () => {
               ) : (
                 paginatedUsers.map((user) => {
                   const isSuper = user.role === 'Super User';
+                  const isSelf = user.email.toLowerCase() === (currentUserEmail || '').trim().toLowerCase();
+                  const superUsersCount = users.filter((u) => u.role === 'Super User').length;
+                  const isLastSuperUser = isSuper && superUsersCount <= 1;
 
                   return (
                     <tr
@@ -604,17 +740,43 @@ export const UserManagementView: React.FC = () => {
                         )}
                       </td>
 
-                      {/* 3. Action ("Change Role" button) */}
+                      {/* 3. Action ("Change Role" and "Delete" buttons) */}
                       <td className={`${isThemeB ? 'py-2 px-3' : 'py-2 px-3'} text-right pr-4`}>
-                        <button
-                          type="button"
-                          onClick={() => handleOpenChangeRoleModal(user)}
-                          title={dict.userManagement.changeRoleBtn}
-                          className="px-3 py-1 bg-white hover:bg-gray-50 text-gray-700 font-semibold rounded text-xs border border-gray-300 cursor-pointer shadow-2xs inline-flex items-center gap-1.5 transition-colors"
-                        >
-                          <Edit2 className="w-3 h-3 text-gray-500" />
-                          <span>{dict.userManagement.changeRoleBtn}</span>
-                        </button>
+                        <div className="flex items-center justify-end gap-1.5">
+                          {/* Change Role Button */}
+                          <button
+                            type="button"
+                            onClick={() => handleOpenChangeRoleModal(user)}
+                            title={dict.userManagement.changeRoleBtn}
+                            className="px-2.5 py-1 bg-white hover:bg-gray-50 text-gray-700 font-semibold rounded text-xs border border-gray-300 cursor-pointer shadow-2xs inline-flex items-center gap-1.5 transition-colors"
+                          >
+                            <Edit2 className="w-3 h-3 text-gray-500" />
+                            <span>{dict.userManagement.changeRoleBtn}</span>
+                          </button>
+
+                          {/* Delete Button */}
+                          <button
+                            type="button"
+                            onClick={() => handleInitiateDelete(user)}
+                            title={
+                              isSelf
+                                ? dict.userManagement.deleteModal.selfDeleteBlocked
+                                : isLastSuperUser
+                                ? dict.userManagement.deleteModal.lastSuperUserBlocked
+                                : dict.userManagement.deleteBtn
+                            }
+                            disabled={isSelf}
+                            className={`p-1.5 rounded border transition-colors ${
+                              isSelf
+                                ? 'border-gray-200 text-gray-300 bg-gray-50 cursor-not-allowed'
+                                : isThemeB
+                                ? 'border-[#383838] bg-[#262626] text-gray-300 hover:text-red-400 hover:border-red-500/50 cursor-pointer'
+                                : 'border-gray-200 bg-white text-gray-500 hover:text-red-600 hover:border-red-200 hover:bg-red-50 cursor-pointer shadow-2xs'
+                            }`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -650,7 +812,189 @@ export const UserManagementView: React.FC = () => {
         </div>
       </div>
 
-      {/* 🔹 4. CHANGE ROLE MODAL */}
+      {/* 🔹 4. ADD NEW USER MODAL */}
+      {isAddUserModalOpen && (
+        <div
+          className={`fixed inset-0 z-50 ${
+            isThemeB ? 'bg-black/60 backdrop-blur-xs' : 'bg-black/25 backdrop-blur-[2px]'
+          } flex items-center justify-center p-4 font-sans`}
+        >
+          <div className="bg-white rounded-lg border border-[#E0E0E0] shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div
+              className={`p-4 flex items-center justify-between border-b ${
+                isThemeB
+                  ? 'bg-[#1A1A1A] text-white border-amber-400'
+                  : 'bg-gray-50 text-gray-900 border-gray-200'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <UserPlus className="w-4 h-4 text-[#F8B800]" />
+                <h3 className="font-bold text-[15px] tracking-tight">
+                  {dict.userManagement.addUserModal.title}
+                </h3>
+              </div>
+              <button
+                onClick={() => setIsAddUserModalOpen(false)}
+                className="cursor-pointer p-1 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-200 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleCreateUser} className="p-5 space-y-4 text-xs">
+              {/* Email Address */}
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">
+                  {dict.userManagement.addUserModal.emailLabel} <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="email"
+                  value={newEmail}
+                  onChange={(e) => {
+                    setNewEmail(e.target.value);
+                    if (emailError) setEmailError('');
+                  }}
+                  placeholder={dict.userManagement.addUserModal.emailPlaceholder}
+                  className={`w-full px-3 py-1.5 border rounded text-xs bg-white text-gray-900 focus:outline-none transition-colors font-medium ${
+                    emailError
+                      ? 'border-red-500 focus:border-red-500 focus:ring-1 focus:ring-red-500/20'
+                      : 'border-[#E0E0E0] focus:border-[#F8B800]'
+                  }`}
+                />
+                {emailError && (
+                  <p className="text-red-600 text-[11px] mt-1 font-medium">{emailError}</p>
+                )}
+              </div>
+
+              {/* Role Selector */}
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">
+                  {dict.userManagement.addUserModal.roleLabel} <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={newRole}
+                  onChange={(e) => setNewRole(e.target.value as 'Super User' | 'Normal User')}
+                  className="w-full px-3 py-1.5 border border-[#E0E0E0] rounded text-xs bg-white text-gray-900 focus:outline-none focus:border-[#F8B800] cursor-pointer font-medium"
+                >
+                  <option value="Normal User">{dict.userManagement.roles.normalUser}</option>
+                  <option value="Super User">{dict.userManagement.roles.superUser}</option>
+                </select>
+              </div>
+
+              {/* Informational Banner */}
+              <div className="bg-amber-50/70 border border-amber-200/80 rounded p-2.5 text-amber-900 text-[11.5px] flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-[#F8B800] shrink-0 mt-0.5" />
+                <span className="leading-snug">{dict.userManagement.addUserModal.infoNotice}</span>
+              </div>
+
+              {/* Footer Actions */}
+              <div className="pt-3 border-t border-[#E0E0E0] flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAddUserModalOpen(false)}
+                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded cursor-pointer text-xs"
+                >
+                  {dict.userManagement.addUserModal.cancelBtn}
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-[#f7b611] hover:bg-[#e2a508] text-white font-semibold rounded flex items-center gap-1.5 cursor-pointer shadow-xs text-xs"
+                >
+                  <Check className="w-3.5 h-3.5 text-white" />
+                  <span className="text-white font-semibold">
+                    {dict.userManagement.addUserModal.createBtn}
+                  </span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 🔹 5. DELETE USER CONFIRMATION MODAL (IN-THEME GEBOL MODAL) */}
+      {userToDelete && (
+        <div
+          className={`fixed inset-0 z-50 ${
+            isThemeB ? 'bg-black/60 backdrop-blur-xs' : 'bg-black/25 backdrop-blur-[2px]'
+          } flex items-center justify-center p-4 font-sans`}
+        >
+          <div className="bg-white rounded-lg border border-[#E0E0E0] shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            {/* Header - Matches GEBOL Design System */}
+            <div
+              className={`p-4 flex items-center justify-between border-b ${
+                isThemeB
+                  ? 'bg-[#1A1A1A] text-white border-amber-400'
+                  : 'bg-gray-50 text-gray-900 border-gray-200'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Trash2 className="w-4 h-4 text-[#F8B800]" />
+                <h3 className="font-bold text-[15px] tracking-tight">
+                  {dict.userManagement.deleteModal.title}
+                </h3>
+              </div>
+              <button
+                onClick={() => setUserToDelete(null)}
+                className="cursor-pointer p-1 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-200 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-5 space-y-4 text-xs">
+              <p className="text-gray-800 text-sm leading-relaxed">
+                {dict.userManagement.deleteModal.confirmPrompt.replace('{email}', userToDelete.email)}
+              </p>
+
+              <div className="bg-gray-50 border border-[#E0E0E0] rounded p-3 text-xs text-gray-700 space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-gray-500">{dict.userManagement.table.email}:</span>
+                  <span className="font-mono font-bold text-gray-900">{userToDelete.email}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">{dict.userManagement.table.role}:</span>
+                  <span className="font-semibold text-gray-800">
+                    {userToDelete.role === 'Super User'
+                      ? dict.userManagement.roles.superUser
+                      : dict.userManagement.roles.normalUser}
+                  </span>
+                </div>
+              </div>
+
+              <div className="bg-amber-50/70 border border-amber-200/80 rounded p-2.5 text-amber-900 text-[11.5px] flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-[#F8B800] shrink-0 mt-0.5" />
+                <span className="leading-snug">{dict.userManagement.deleteModal.warningText}</span>
+              </div>
+
+              {/* Footer Actions */}
+              <div className="pt-3 border-t border-[#E0E0E0] flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setUserToDelete(null)}
+                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded cursor-pointer text-xs"
+                >
+                  {dict.userManagement.deleteModal.cancelBtn}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDelete}
+                  className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded flex items-center gap-1.5 cursor-pointer shadow-xs text-xs"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-white" />
+                  <span className="text-white font-semibold">
+                    {dict.userManagement.deleteModal.confirmBtn}
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🔹 6. CHANGE ROLE MODAL */}
       {userToChangeRole && (
         <div
           className={`fixed inset-0 z-50 ${
@@ -705,8 +1049,8 @@ export const UserManagementView: React.FC = () => {
                   onChange={(e) => setSelectedNewRole(e.target.value as 'Super User' | 'Normal User')}
                   className="w-full px-3 py-1.5 border border-[#E0E0E0] rounded text-xs bg-white text-gray-900 focus:outline-none focus:border-[#F8B800] cursor-pointer font-medium"
                 >
-                  <option value="Super User">{dict.userManagement.roles.superUser}</option>
                   <option value="Normal User">{dict.userManagement.roles.normalUser}</option>
+                  <option value="Super User">{dict.userManagement.roles.superUser}</option>
                 </select>
               </div>
 
@@ -734,7 +1078,7 @@ export const UserManagementView: React.FC = () => {
         </div>
       )}
 
-      {/* 🔹 5. FILTER MODAL */}
+      {/* 🔹 7. FILTER MODAL */}
       {isFilterModalOpen && (
         <div
           className={`fixed inset-0 z-50 ${
@@ -814,7 +1158,7 @@ export const UserManagementView: React.FC = () => {
         </div>
       )}
 
-      {/* 🔹 6. 2-STEP IMPORT USERS MODAL (MATCHING ARTICLE MASTER PATTERN) */}
+      {/* 🔹 8. 2-STEP IMPORT USERS MODAL (STRICTLY .XLSX FULL REPLACEMENT) */}
       {isImportModalOpen && (
         <div
           className={`fixed inset-0 z-50 ${
@@ -864,6 +1208,14 @@ export const UserManagementView: React.FC = () => {
                     <span className="text-gray-700 font-medium">
                       {dict.userManagement.importModal.selectPrompt}
                     </span>
+                    <button
+                      type="button"
+                      onClick={handleDownloadSampleTemplate}
+                      className="text-xs text-[#ED6C02] hover:text-[#d49b00] underline font-semibold flex items-center gap-1 cursor-pointer"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>{dict.userManagement.importModal.downloadTemplate}</span>
+                    </button>
                   </div>
 
                   {/* File Upload Drop Zone - Entire Dotted Area Clickable */}
@@ -886,7 +1238,7 @@ export const UserManagementView: React.FC = () => {
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept=".xlsx,.xls,.csv"
+                      accept=".xlsx"
                       onChange={handleFileUpload}
                       className="hidden"
                     />
@@ -913,9 +1265,9 @@ export const UserManagementView: React.FC = () => {
                   </div>
                 </>
               ) : (
-                /* STEP 2: PREVIEW TABLE WITH ROW VALIDATION */
+                /* STEP 2: PREVIEW TABLE WITH FULL REPLACEMENT ROW VALIDATION */
                 <div className="space-y-4">
-                  {/* Notice depicting replacement/update */}
+                  {/* Notice depicting replacement */}
                   <div className="bg-amber-50 border border-amber-300 rounded-lg p-3 text-xs text-amber-950 flex items-start gap-2.5 shadow-xs">
                     <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                     <div>
@@ -945,7 +1297,7 @@ export const UserManagementView: React.FC = () => {
                     </div>
 
                     <span className="text-[11px] text-gray-500 font-mono">
-                      {selectedFileName || 'User Dataset'}
+                      {selectedFileName || 'User Dataset.xlsx'}
                     </span>
                   </div>
 
@@ -1004,7 +1356,7 @@ export const UserManagementView: React.FC = () => {
                             <td className="py-2.5 px-3">
                               {row.isValid ? (
                                 <span className="text-emerald-700 text-xs font-normal">
-                                  {isDe ? 'Bereit' : 'Ready'}
+                                  {isDe ? 'Bereit für Ersatz' : 'Ready for replacement'}
                                 </span>
                               ) : (
                                 <div className="space-y-0.5">
@@ -1032,7 +1384,7 @@ export const UserManagementView: React.FC = () => {
                         </span>
                       </div>
                       <span className="text-[11px] text-red-600 font-mono">
-                        {isDe ? 'Alle Zeilen müssen gültig sein' : 'All records must be valid to import'}
+                        {isDe ? 'Alle Zeilen müssen gültig sein' : 'All records must be valid to replace'}
                       </span>
                     </div>
                   )}
@@ -1064,8 +1416,8 @@ export const UserManagementView: React.FC = () => {
                         disabled={importPreviews.some((p) => !p.isValid) || importPreviews.length === 0}
                         title={
                           importPreviews.some((p) => !p.isValid)
-                            ? 'Save button is disabled because mandatory fields are missing or duplicate records exist'
-                            : 'Save and update all user records'
+                            ? 'Save button is disabled because mandatory fields are missing, invalid, or no Super User exists'
+                            : 'Save and replace all user records'
                         }
                         className="px-4 py-2 bg-[#f7b611] hover:bg-[#e2a508] disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold rounded flex items-center gap-1.5 cursor-pointer shadow-xs"
                       >

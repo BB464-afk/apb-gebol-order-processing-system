@@ -2,9 +2,171 @@ import { PurchaseOrderRecord } from '../types/po';
 
 export const INITIAL_SAMPLE_POS: PurchaseOrderRecord[] = [
   {
-    id: 'PO-2026-80635109',
+    id: 'PO-2026-80635109-1',
     sourceType: 'PDF',
-    sourceFileName: 'BESTELLUNG_BAUKING_80635109.pdf',
+    sourceFileName: 'SAMMELBESTELLUNG_BAUKING_80635109.pdf',
+    isMultiOrderPdf: true,
+    targetPage: 1,
+    multiOrderTotalPages: 6,
+    multiOrderPageRange: '1-3',
+    uploadedBy: 'Lucas Platzer',
+    receivedAt: '2026-08-13 08:30',
+    status: 'Needs Review',
+    extractionConfidence: 96,
+    completenessScore: 92,
+    buyer: {
+      companyName: 'BAUKING Ostfalen GmbH',
+      customerNumber: '148510',
+      gln: '109008',
+      vatId: 'DE296746712',
+      contactPerson: 'Stefan Germer (03949 9452-44)',
+      email: 'stefan.germer@bauking.de',
+      phone: '03949 9452-44',
+      billingAddress: {
+        street: 'Magdeburger Berg 3',
+        city: 'Helmstedt',
+        postalCode: '38350',
+        country: 'Germany',
+      },
+    },
+    order: {
+      poNumber: '80635109-1',
+      poDate: '2026-07-08',
+      orderReference: 'Order 1 of 2 (Pages 1-3)',
+      currency: 'EUR',
+      paymentTerms: 'Lieferung durch Lieferant zum Lager',
+      incoterms: 'DDP Oschersleben',
+      customerNotes: 'Multi-Order PDF [Pages 1-3 of 6]. Ges.-Nr. 148510, FH Oschersleben. Bitte buchen Sie ab 3 ldm Ihre verbindliche Anlieferzeit unter www.cargoclix.com/bauking',
+    },
+    delivery: {
+      recipientName: 'FH Oschersleben',
+      deliveryLocation: 'FH Oschersleben',
+      deliveryAddress: {
+        street: 'Schermcker Str. 17',
+        city: 'Oschersleben',
+        postalCode: '39387',
+        country: 'Germany',
+      },
+      requestedDeliveryDate: '2026-07-08',
+      shippingMethod: 'Lieferant zum Lager',
+      unloadingPoint: 'FH Oschersleben',
+    },
+    lineItems: [
+      {
+        id: 'li-bk1-1',
+        itemPos: 10,
+        eanBarcode: '9002701041949',
+        customerArticleNo: '730504',
+        gebolArticleNo: '004649',
+        description: '°Gebol Verpackungsband 75mm x 500lfm bedruckt',
+        quantity: 10,
+        unit: 'Bli',
+        unitPrice: 3.63,
+        contractPrice: 3.63,
+        taxRatePercentage: 19,
+        lineTotal: 36.30,
+        skuMatched: true,
+        priceVariance: false,
+      },
+      {
+        id: 'li-bk1-2',
+        itemPos: 20,
+        eanBarcode: '9002701041932',
+        customerArticleNo: '730505',
+        gebolArticleNo: '004652',
+        description: '°Füllmaterial Verpackung 90g pro m³ , 0,350m x 350,000m bedruckt',
+        quantity: 10,
+        unit: 'St',
+        unitPrice: 4.61,
+        contractPrice: 4.61,
+        taxRatePercentage: 19,
+        lineTotal: 46.10,
+        skuMatched: true,
+        priceVariance: false,
+      },
+      {
+        id: 'li-bk1-3',
+        itemPos: 30,
+        eanBarcode: '9002701018491',
+        customerArticleNo: '709534_10',
+        gebolArticleNo: '009552',
+        description: 'Gebol Tragetasche Papier grau 23x34x10cm',
+        quantity: 12,
+        unit: 'Paa',
+        unitPrice: 1.67,
+        contractPrice: 1.67,
+        taxRatePercentage: 19,
+        lineTotal: 20.04,
+        skuMatched: true,
+        priceVariance: false,
+      },
+      {
+        id: 'li-bk1-4',
+        itemPos: 40,
+        eanBarcode: '9002701018507',
+        customerArticleNo: '709534_09',
+        gebolArticleNo: '009553',
+        description: 'Gebol Tragetasche Papier weiß, Magnetverschluss 30 x 34cm',
+        quantity: 12,
+        unit: 'Paa',
+        unitPrice: 1.67,
+        contractPrice: 1.67,
+        taxRatePercentage: 19,
+        lineTotal: 20.04,
+        skuMatched: true,
+        priceVariance: false,
+      },
+    ],
+    validationRules: [
+      {
+        id: 'vr-bk1-1',
+        code: 'VAL-01',
+        category: 'Buyer',
+        severity: 'info',
+        message: 'Customer 148510 verified with GEBOL Master Account (BAUKING Ostfalen GmbH)',
+        passed: true,
+      },
+      {
+        id: 'vr-bk1-2',
+        code: 'VAL-03',
+        category: 'Delivery',
+        severity: 'info',
+        message: 'Destination FH Oschersleben verified with GEBOL German warehouse route',
+        passed: true,
+      },
+    ],
+    auditTrail: [
+      {
+        id: 'at-bk1-1',
+        timestamp: '2026-08-13 08:30:12',
+        user: 'GEBOL Multi-Order Splitter',
+        action: 'Document Ingestion',
+        details: 'Parsed SAMMELBESTELLUNG_BAUKING_80635109.pdf (Pages 1-3 of 6) with 96% confidence',
+        category: 'Extraction',
+      },
+    ],
+    rawContentText: `BAUKING Ostfalen GmbH • Magdeburger Berg 3 • 38350 Helmstedt
+Ges.-Nr. 148510 | SAMMELBESTELLUNG 80635109 [TEILBESTELLUNG 1 - SEITEN 1 BIS 3]
+Best.-Datum: 08.07.2026 | Dokumentenseiten: 1-3 / 6
+Lieferadresse: FH Oschersleben, BAUKING Ostfalen GmbH, Schermcker Str. 17, D-39387 Oschersleben
+Lieferant: Gebol GmbH, Samesleitner Str. 4, A 4470 Enns
+Liefertermin: 08.07.2026
+
+Pos 1,0 | 10 Bli | 730504 / 9002701050446 | Gebol Verpackungsband 75mm x 500lfm bedruckt | € 3,63 | € 36,30
+Pos 2,0 | 10 St  | 730505 / 9002701050552 | Füllmaterial Verpackung 90g pro m³            | € 4,61 | € 46,10
+Pos 3,0 | 12 Paa | 709534_10 / 9002701018491 | Gebol Tragetasche Papier grau 23x34x10cm    | € 1,67 | € 20,04
+Pos 4,0 | 12 Paa | 709534_09 / 9002701018507 | Gebol Tragetasche Papier weiß               | € 1,67 | € 20,04
+
+Warenwert: 122,48 EUR | Endbetrag: 122,48 EUR`,
+  },
+  {
+    id: 'PO-2026-80635109-2',
+    sourceType: 'PDF',
+    sourceFileName: 'SAMMELBESTELLUNG_BAUKING_80635109.pdf',
+    isMultiOrderPdf: true,
+    targetPage: 4,
+    multiOrderTotalPages: 6,
+    multiOrderPageRange: '4-6',
     uploadedBy: 'Lucas Platzer',
     receivedAt: '2026-08-13 08:30',
     status: 'Needs Review',
@@ -26,94 +188,30 @@ export const INITIAL_SAMPLE_POS: PurchaseOrderRecord[] = [
       },
     },
     order: {
-      poNumber: '80635109',
+      poNumber: '80635109-2',
       poDate: '2026-07-08',
-      orderReference: '—',
+      orderReference: 'Order 2 of 2 (Pages 4-6)',
       currency: 'EUR',
       paymentTerms: 'Lieferung durch Lieferant zum Lager',
-      incoterms: 'DDP Oschersleben',
-      customerNotes: 'Ges.-Nr. 148510, FH Oschersleben. Bitte buchen Sie ab 3 ldm Ihre verbindliche Anlieferzeit unter www.cargoclix.com/bauking',
+      incoterms: 'DDP Magdeburg',
+      customerNotes: 'Multi-Order PDF [Pages 4-6 of 6]. Ges.-Nr. 148510, FH Magdeburg. Bitte buchen Sie ab 3 ldm Ihre verbindliche Anlieferzeit unter www.cargoclix.com/bauking',
     },
     delivery: {
-      recipientName: 'FH Oschersleben',
-      deliveryLocation: 'FH Oschersleben',
+      recipientName: 'FH Magdeburg',
+      deliveryLocation: 'FH Magdeburg',
       deliveryAddress: {
-        street: 'Schermcker Str. 17',
-        city: 'Oschersleben',
-        postalCode: '39387',
+        street: 'Lübecker Str. 50',
+        city: 'Magdeburg',
+        postalCode: '39124',
         country: 'Germany',
       },
-      requestedDeliveryDate: '2026-07-08',
+      requestedDeliveryDate: '2026-07-09',
       shippingMethod: 'Lieferant zum Lager',
-      unloadingPoint: 'FH Oschersleben',
+      unloadingPoint: 'FH Magdeburg',
     },
     lineItems: [
       {
-        id: 'li-bk-1',
-        itemPos: 10,
-        eanBarcode: '9002701041949',
-        customerArticleNo: '730504',
-        gebolArticleNo: '004649',
-        description: '°Gebol Verpackungsband 75mm x 500lfm bedruckt',
-        quantity: 10,
-        unit: 'Bli',
-        unitPrice: 3.63,
-        contractPrice: 3.63,
-        taxRatePercentage: 19,
-        lineTotal: 36.30,
-        skuMatched: true,
-        priceVariance: false,
-      },
-      {
-        id: 'li-bk-2',
-        itemPos: 20,
-        eanBarcode: '9002701041932',
-        customerArticleNo: '730505',
-        gebolArticleNo: '004652',
-        description: '°Füllmaterial Verpackung 90g pro m³ , 0,350m x 350,000m bedruckt',
-        quantity: 10,
-        unit: 'St',
-        unitPrice: 4.61,
-        contractPrice: 4.61,
-        taxRatePercentage: 19,
-        lineTotal: 46.10,
-        skuMatched: true,
-        priceVariance: false,
-      },
-      {
-        id: 'li-bk-3',
-        itemPos: 30,
-        eanBarcode: '9002701018491',
-        customerArticleNo: '709534_10',
-        gebolArticleNo: '009552',
-        description: 'Gebol Tragetasche Papier grau 23x34x10cm',
-        quantity: 12,
-        unit: 'Paa',
-        unitPrice: 1.67,
-        contractPrice: 1.67,
-        taxRatePercentage: 19,
-        lineTotal: 20.04,
-        skuMatched: true,
-        priceVariance: false,
-      },
-      {
-        id: 'li-bk-4',
-        itemPos: 40,
-        eanBarcode: '9002701018507',
-        customerArticleNo: '709534_09',
-        gebolArticleNo: '009553',
-        description: 'Gebol Tragetasche Papier weiß, Magnetverschluss 30 x 34cm',
-        quantity: 12,
-        unit: 'Paa',
-        unitPrice: 1.67,
-        contractPrice: 1.67,
-        taxRatePercentage: 19,
-        lineTotal: 20.04,
-        skuMatched: true,
-        priceVariance: false,
-      },
-      {
-        id: 'li-bk-5',
+        id: 'li-bk2-1',
         itemPos: 50,
         eanBarcode: '9002701037485',
         customerArticleNo: '702001',
@@ -129,7 +227,7 @@ export const INITIAL_SAMPLE_POS: PurchaseOrderRecord[] = [
         priceVariance: false,
       },
       {
-        id: 'li-bk-6',
+        id: 'li-bk2-2',
         itemPos: 60,
         eanBarcode: '9002701037492',
         customerArticleNo: '702003',
@@ -145,7 +243,7 @@ export const INITIAL_SAMPLE_POS: PurchaseOrderRecord[] = [
         priceVariance: false,
       },
       {
-        id: 'li-bk-7',
+        id: 'li-bk2-3',
         itemPos: 70,
         eanBarcode: '9002701037508',
         customerArticleNo: '730502',
@@ -161,7 +259,7 @@ export const INITIAL_SAMPLE_POS: PurchaseOrderRecord[] = [
         priceVariance: false,
       },
       {
-        id: 'li-bk-8',
+        id: 'li-bk2-4',
         itemPos: 80,
         eanBarcode: '9002701000731',
         customerArticleNo: '730002',
@@ -177,7 +275,7 @@ export const INITIAL_SAMPLE_POS: PurchaseOrderRecord[] = [
         priceVariance: false,
       },
       {
-        id: 'li-bk-9',
+        id: 'li-bk2-5',
         itemPos: 90,
         eanBarcode: '',
         customerArticleNo: '91032',
@@ -195,7 +293,7 @@ export const INITIAL_SAMPLE_POS: PurchaseOrderRecord[] = [
     ],
     validationRules: [
       {
-        id: 'vr-bk-1',
+        id: 'vr-bk2-1',
         code: 'VAL-01',
         category: 'Buyer',
         severity: 'info',
@@ -203,7 +301,7 @@ export const INITIAL_SAMPLE_POS: PurchaseOrderRecord[] = [
         passed: true,
       },
       {
-        id: 'vr-bk-2',
+        id: 'vr-bk2-2',
         category: 'LineItems',
         code: 'VAL-02',
         severity: 'error',
@@ -213,25 +311,25 @@ export const INITIAL_SAMPLE_POS: PurchaseOrderRecord[] = [
         autoFixAvailable: true,
       },
       {
-        id: 'vr-bk-3',
+        id: 'vr-bk2-3',
         code: 'VAL-03',
         category: 'Delivery',
         severity: 'info',
-        message: 'Destination FH Oschersleben verified with GEBOL German warehouse route',
+        message: 'Destination FH Magdeburg verified with GEBOL German warehouse route',
         passed: true,
       },
     ],
     auditTrail: [
       {
-        id: 'at-bk-1',
+        id: 'at-bk2-1',
         timestamp: '2026-08-13 08:30:12',
-        user: 'GEBOL AI Document OCR',
+        user: 'GEBOL Multi-Order Splitter',
         action: 'Document Ingestion',
-        details: 'Parsed BESTELLUNG_BAUKING_80635109.pdf with 94% confidence score',
+        details: 'Parsed SAMMELBESTELLUNG_BAUKING_80635109.pdf (Pages 4-6 of 6) with 94% confidence',
         category: 'Extraction',
       },
       {
-        id: 'at-bk-2',
+        id: 'at-bk2-2',
         timestamp: '2026-08-13 08:30:13',
         user: 'Validation Engine',
         action: 'Validation Executed',
@@ -240,24 +338,21 @@ export const INITIAL_SAMPLE_POS: PurchaseOrderRecord[] = [
       },
     ],
     rawContentText: `BAUKING Ostfalen GmbH • Magdeburger Berg 3 • 38350 Helmstedt
-Ges.-Nr. 148510 | BESTELLUNG 80635109
-Best.-Datum: 08.07.2026 | Seite: 1/2
-Lieferadresse: FH Oschersleben, BAUKING Ostfalen GmbH, Schermcker Str. 17, D-39387 Oschersleben
+Ges.-Nr. 148510 | SAMMELBESTELLUNG 80635109 [TEILBESTELLUNG 2 - SEITEN 4 BIS 6]
+Best.-Datum: 08.07.2026 | Dokumentenseiten: 4-6 / 6
+Lieferadresse: FH Magdeburg, BAUKING Ostfalen GmbH, Lübecker Str. 50, D-39124 Magdeburg
 Lieferant: Gebol GmbH, Samesleitner Str. 4, A 4470 Enns
-Liefertermin: 08.07.2026
+Liefertermin: 09.07.2026
 
-Pos 1,0 | 10 Bli | 730504 / 9002701050446 | Schutzmaske FFP2 Comfort SB mit Ventil Gebol 2 St/Bli | € 3,63 | € 36,30
-Pos 2,0 | 10 St  | 730505 / 9002701050552 | Schutzmaske Comfort FFP3 SB mit Ventil Gebol          | € 4,61 | € 46,10
-Pos 3,0 | 12 Paa | 709534_10 / 9002701025789 | Handschuh Top Flex 80% Nylon 20% Elasthan Gebol 10   | € 1,67 | € 20,04
-Pos 4,0 | 12 Paa | 709534_09 / 9002701025796 | Handschuh Top Flex 80% Nylon 20% Elasthan Gebol 9    | € 1,67 | € 20,04
-Pos 5,0 | 3 Paa  | 702001 / 9002701420003 | Knieschoner Schalenform mit Stretchband Gebol        | € 9,10 | € 27,30
-Pos 6,0 | 3 Paa  | 702003 / 9002701702000 | Knieschoner Profi mit Gel-Einlage Gebol              | € 11,56 | € 34,68
-Pos 7,0 | 5 Bli  | 730502 / 9002701050231 | Schutzmaske FFP2 Profi Gebol 2 St/Bli                | € 3,06 | € 15,30
-Pos 8,0 | 2 St   | 730002 / 9002701732021 | Schutzbrille Safety Comfort getönt Gebol              | € 2,47 | € 4,94
-Pos 9,0 | 1 St   | 91032 / 2400000030492  | Logistikkosten des Lieferanten per St                  | € 0,00 | € 0,00
+Pos 5,0 | 3 Paa  | 702001 / 9002701420003 | Knieschoner Schalenform mit Stretchband Gebol | € 9,10 | € 27,30
+Pos 6,0 | 3 Paa  | 702003 / 9002701702000 | Knieschoner Profi mit Gel-Einlage Gebol       | € 11,56 | € 34,68
+Pos 7,0 | 5 Bli  | 730502 / 9002701050231 | Schutzmaske FFP2 Profi Gebol 2 St/Bli         | € 3,06 | € 15,30
+Pos 8,0 | 2 St   | 730002 / 9002701732021 | Schutzbrille Safety Comfort getönt Gebol       | € 2,47 | € 4,94
+Pos 9,0 | 1 St   | 91032 / 2400000030492  | Logistikkosten des Lieferanten per St           | € 0,00 | € 0,00
 
-Warenwert: 204,70 EUR | Endbetrag: 204,70 EUR`,
+Warenwert: 82,22 EUR | Endbetrag: 82,22 EUR`,
   },
+
   {
     id: 'PO-2026-88102',
     sourceType: 'XLSX' as any,

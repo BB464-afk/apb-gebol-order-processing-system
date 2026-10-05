@@ -17,7 +17,8 @@ import {
   Search as SearchIcon,
   Calendar,
   Trash2,
-  AlertCircle
+  AlertCircle,
+  Info
 } from 'lucide-react';
 import {
   PurchaseOrderRecord,
@@ -62,7 +63,13 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
     setDraftPo(po);
     setHasAttemptedXml(false);
     setIsUnsavedChangesModalOpen(false);
+    setLineItemToDelete(null);
     setAdditionalDetailsText(formatInitialAdditionalDetails(po));
+    if (po.isMultiOrderPdf || po.targetPage) {
+      setDocPage(po.targetPage || 1);
+    } else {
+      setDocPage(1);
+    }
   }, [po]);
 
   // Direct state updater that updates local draft state
@@ -72,8 +79,14 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
 
   const isXmlGenerated = draftPo.status === 'Completed' || (draftPo.status as string) === 'XML Generated';
 
+  // Multi-Order PDF Check & Target Page
+  const isMultiOrder = Boolean(draftPo.isMultiOrderPdf || po.isMultiOrderPdf || po.targetPage);
+  const targetDocPage = draftPo.targetPage || po.targetPage || (isMultiOrder ? 1 : 1);
+
   // Document Viewer State & Dynamic Pagination
-  const [docPage, setDocPage] = useState<number>(1);
+  const [docPage, setDocPage] = useState<number>(() =>
+    po.isMultiOrderPdf || po.targetPage ? po.targetPage || 1 : 1
+  );
   const [docZoom, setDocZoom] = useState<number>(100);
   const [isDocCollapsed, setIsDocCollapsed] = useState<boolean>(false);
 
@@ -81,7 +94,9 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
   const [lineItemSearchTerm, setLineItemSearchTerm] = useState<string>('');
 
   const itemsPerPage = 5;
-  const totalDocPages = Math.max(1, Math.ceil(draftPo.lineItems.length / itemsPerPage));
+  const totalDocPages = isMultiOrder
+    ? draftPo.multiOrderTotalPages || po.multiOrderTotalPages || 6
+    : Math.max(1, Math.ceil(draftPo.lineItems.length / itemsPerPage));
   const currentDocPage = Math.min(docPage, totalDocPages);
   const orderNetTotal =
     draftPo.lineItems.reduce((sum, item) => sum + ((item.quantity || 0) * (item.unitPrice || 0)), 0) ||
@@ -135,11 +150,14 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
   const [customerSearchTerm, setCustomerSearchTerm] = useState<string>('');
   const [customerCountryFilter, setCustomerCountryFilter] = useState<string>('All');
 
-  // Add Item Position Modal State
+  // Add Item Position Modal State (Allows adding multiple items)
   const [isAddItemModalOpen, setIsAddItemModalOpen] = useState<boolean>(false);
   const [addItemSearchTerm, setAddItemSearchTerm] = useState<string>('');
-  const [selectedArticleForAdd, setSelectedArticleForAdd] = useState<ArticleMasterRecord | null>(null);
-  const [addItemQuantity, setAddItemQuantity] = useState<number>(0);
+  const [selectedArticlesQuantities, setSelectedArticlesQuantities] = useState<Record<string, number>>({});
+  
+  // Line Item Deletion Confirmation State
+  const [lineItemToDelete, setLineItemToDelete] = useState<LineItem | null>(null);
+
   const dateInputRef = useRef<HTMLInputElement>(null);
 
   const unmappedLineCountDraft = draftPo.lineItems.filter(
@@ -344,40 +362,53 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
 
   // Add Item Position Modal Action
   const handleOpenAddItemModal = () => {
-    setSelectedArticleForAdd(null);
-    setAddItemQuantity(1);
+    setSelectedArticlesQuantities({});
     setAddItemSearchTerm('');
     setIsAddItemModalOpen(true);
   };
 
+  const selectedPositionsList = useMemo(() => {
+    return Object.entries(selectedArticlesQuantities)
+      .map(([artId, qty]) => ({ artId, qty: Number(qty) || 0 }))
+      .filter((item) => item.qty > 0);
+  }, [selectedArticlesQuantities]);
+
+  const totalSelectedPositionsCount = selectedPositionsList.length;
+  const totalSelectedQuantity = selectedPositionsList.reduce((sum, item) => sum + item.qty, 0);
+
   const handleConfirmAddItem = () => {
-    if (!selectedArticleForAdd || addItemQuantity <= 0) {
+    if (selectedPositionsList.length === 0) {
       toast.warning(
         isDe ? 'Ungültige Auswahl' : 'Invalid Selection',
-        isDe ? 'Bitte wählen Sie einen Artikel und eine Menge aus.' : 'Please select an article and a positive quantity.'
+        isDe
+          ? 'Bitte wählen Sie mindestens einen Artikel und eine Menge aus.'
+          : 'Please select at least one article with a positive quantity.'
       );
       return;
     }
 
-    const nextPos = (draftPo.lineItems.length + 1) * 10;
-    const newItem: LineItem = {
-      id: `li-manual-${Date.now()}`,
-      itemPos: nextPos,
-      customerArticleNo: selectedArticleForAdd.articleId,
-      gebolArticleNo: selectedArticleForAdd.articleId,
-      eanBarcode: selectedArticleForAdd.ean || '',
-      description: selectedArticleForAdd.description,
-      quantity: addItemQuantity,
-      unit: 'Paa',
-      unitPrice: 4.50,
-      contractPrice: 4.50,
-      taxRatePercentage: 19,
-      lineTotal: addItemQuantity * 4.50,
-      skuMatched: true,
-      priceVariance: false,
-    };
+    const nextPosStart = (draftPo.lineItems.length + 1) * 10;
+    const newItems: LineItem[] = selectedPositionsList.map((item, index) => {
+      const art = INITIAL_ARTICLES_DATASET.find((a) => a.id === item.artId)!;
+      return {
+        id: `li-manual-${Date.now()}-${index}`,
+        itemPos: nextPosStart + index * 10,
+        customerArticleNo: art.articleId,
+        gebolArticleNo: art.articleId,
+        eanBarcode: art.ean || '',
+        description: art.description,
+        quantity: item.qty,
+        unit: 'Paa',
+        unitPrice: 4.50,
+        contractPrice: 4.50,
+        taxRatePercentage: 19,
+        lineTotal: item.qty * 4.50,
+        skuMatched: true,
+        priceVariance: false,
+      };
+    });
 
-    const updatedItems = [...draftPo.lineItems, newItem];
+    const updatedItems = [...draftPo.lineItems, ...newItems];
     const updatedPo: PurchaseOrderRecord = {
       ...draftPo,
       lineItems: updatedItems,
@@ -385,9 +416,12 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
 
     handleUpdateField(updatedPo);
     setIsAddItemModalOpen(false);
+    setSelectedArticlesQuantities({});
     toast.success(
-      isDe ? 'Position hinzugefügt' : 'Position Added',
-      `${selectedArticleForAdd.articleId} (${addItemQuantity}x) ${isDe ? 'hinzugefügt.' : 'added.'}`
+      isDe ? 'Positionen hinzugefügt' : 'Positions Added',
+      isDe
+        ? `${newItems.length} Position(en) hinzugefügt.`
+        : `${newItems.length} line position(s) added.`
     );
   };
 
@@ -538,9 +572,31 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
                     <ChevronLeft className="w-4 h-4" />
                   </button>
                   <FileText className="w-3.5 h-3.5 text-gray-500 shrink-0" />
-                  <span className="font-bold text-xs text-gray-900 font-mono truncate max-w-[280px]">
+                  <span className="font-bold text-xs text-gray-900 font-mono truncate max-w-[230px]">
                     {po.sourceFileName || 'Purchase Order Document.pdf'}
                   </span>
+
+                  {/* 🔹 Conditional Info Icon for Multi-Order PDF */}
+                  {isMultiOrder && (
+                    <div className="relative group/pdfinfo inline-flex items-center">
+                      <button
+                        type="button"
+                        onClick={() => setDocPage(targetDocPage)}
+                        className="p-1 text-amber-600 hover:text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-full cursor-help transition-colors shrink-0"
+                        title={`This order is part of a multi order pdf and the processed order here is on page ${targetDocPage}`}
+                      >
+                        <Info className="w-3.5 h-3.5 shrink-0" />
+                      </button>
+
+                      {/* Custom Tooltip - Positioned safely with fixed width so it's NEVER cropped */}
+                      <div className="absolute left-0 top-full mt-2 hidden group-hover/pdfinfo:flex flex-col items-start z-50 pointer-events-none w-72 sm:w-80">
+                        <div className="w-2.5 h-2.5 bg-[#1A1A1A] rotate-45 ml-2 -mb-1 shadow-xs"></div>
+                        <div className="bg-[#1A1A1A] text-white text-[11.5px] font-medium py-2 px-3 rounded-lg shadow-2xl border border-gray-700 leading-snug whitespace-normal text-left">
+                          This order is part of a multi order pdf and the processed order here is on page {targetDocPage}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Pagination Controls */}
@@ -571,56 +627,305 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
                   style={{ transform: `scale(${docZoom / 100})`, transformOrigin: 'top center' }}
                   className="w-full bg-white p-4 rounded-lg border border-gray-300 shadow-2xs text-gray-800 text-[11px] font-sans space-y-3 select-none"
                 >
-                  <div className="flex justify-between items-start border-b border-gray-200 pb-2">
-                    <div>
-                      <div className="font-bold text-xs text-gray-900">{draftPo.buyer.companyName || 'BAUKING Ostfalen GmbH'}</div>
-                      <div className="text-[10px] text-gray-500">Magdeburger Berg 3, 38350 Helmstedt</div>
-                    </div>
-                    <span className="text-[10px] font-mono text-gray-400">PAGE {currentDocPage} / {totalDocPages}</span>
-                  </div>
+                  {/* Render page-specific content for Multi-Order PDF */}
+                  {isMultiOrder ? (
+                    <>
+                      {/* Document Header */}
+                      <div className="flex justify-between items-start border-b border-gray-200 pb-2">
+                        <div>
+                          <div className="font-bold text-xs text-gray-900">
+                            BAUKING Ostfalen GmbH
+                          </div>
+                          <div className="text-[10px] text-gray-500">Magdeburger Berg 3, 38350 Helmstedt</div>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[10px] font-mono text-gray-500 font-bold block">
+                            PAGE {currentDocPage} / 6
+                          </span>
+                          <span className="text-[9px] font-medium text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 inline-block mt-0.5">
+                            {currentDocPage <= 3 ? 'Bestellung 1 (Seiten 1-3)' : 'Bestellung 2 (Seiten 4-6)'}
+                          </span>
+                        </div>
+                      </div>
 
-                  <div className="grid grid-cols-2 gap-2 text-[10.5px]">
-                    <div>
-                      <span className="text-gray-400 block text-[9.5px]">BESTELLUNG / PO</span>
-                      <strong className="text-gray-900 font-mono text-[11px]">{draftPo.order.poNumber || '80635109'}</strong>
-                    </div>
-                    <div>
-                      <span className="text-gray-400 block text-[9.5px]">DATUM</span>
-                      <span className="text-gray-700 font-mono">{draftPo.order.poDate || '2026-07-08'}</span>
-                    </div>
-                  </div>
+                      {/* PO Meta Data */}
+                      <div className="grid grid-cols-2 gap-2 text-[10.5px]">
+                        <div>
+                          <span className="text-gray-400 block text-[9.5px]">BESTELLUNG / PO</span>
+                          <strong className="text-gray-900 font-mono text-[11px]">
+                            {currentDocPage <= 3 ? '80635109-1' : '80635109-2'}
+                          </strong>
+                        </div>
+                        <div>
+                          <span className="text-gray-400 block text-[9.5px]">DATUM / KUNDE</span>
+                          <span className="text-gray-700 font-mono">08.07.2026 | Kd.-Nr. 148510</span>
+                        </div>
+                      </div>
 
-                  <div className="border border-gray-100 bg-gray-50/70 p-2 rounded text-[10px] space-y-1">
-                    <div className="text-gray-500 font-medium">Lieferanschrift:</div>
-                    <div className="font-semibold text-gray-800">{draftPo.delivery.recipientName || 'FH Oschersleben'}</div>
-                    <div className="text-gray-600">Schermcker Str. 17, 39387 Oschersleben</div>
-                  </div>
+                      {/* Delivery Address */}
+                      <div className="border border-gray-100 bg-gray-50/70 p-2 rounded text-[10px] space-y-1">
+                        <div className="text-gray-500 font-medium">Lieferanschrift:</div>
+                        <div className="font-semibold text-gray-800">
+                          {currentDocPage <= 3 ? 'FH Oschersleben' : 'FH Magdeburg'}
+                        </div>
+                        <div className="text-gray-600">
+                          {currentDocPage <= 3
+                            ? 'Schermcker Str. 17, 39387 Oschersleben'
+                            : 'Lübecker Str. 50, 39124 Magdeburg'}
+                        </div>
+                      </div>
 
-                  {/* Line Items Preview */}
-                  <div className="border-t border-gray-200 pt-2">
-                    <table className="w-full text-left text-[10px]">
-                      <thead>
-                        <tr className="border-b border-gray-200 text-gray-500 text-[9px]">
-                          <th className="py-1">Pos</th>
-                          <th className="py-1">Art.Nr</th>
-                          <th className="py-1">Menge</th>
-                          <th className="py-1 text-right">Betrag</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {draftPo.lineItems.slice((currentDocPage - 1) * itemsPerPage, currentDocPage * itemsPerPage).map((it) => (
-                          <tr key={it.id}>
-                            <td className="py-1 font-mono">{it.itemPos}</td>
-                            <td className="py-1 font-mono">{it.customerArticleNo || it.gebolArticleNo}</td>
-                            <td className="py-1">{it.quantity} {it.unit}</td>
-                            <td className="py-1 text-right font-mono">€{(it.lineTotal || 0).toFixed(2)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                      {/* Dynamic Content Per Page (Pages 1 to 6) */}
+                      {currentDocPage === 1 && (
+                        <div className="space-y-2 border-t border-gray-200 pt-2">
+                          <div className="text-[10px] font-bold text-gray-700">Positionen 10 - 20 (Auftrag 1 / Teil 1):</div>
+                          <table className="w-full text-left text-[10px]">
+                            <thead>
+                              <tr className="border-b border-gray-200 text-gray-500 text-[9px]">
+                                <th className="py-1">Pos</th>
+                                <th className="py-1">Art.Nr</th>
+                                <th className="py-1">Bezeichnung</th>
+                                <th className="py-1">Menge</th>
+                                <th className="py-1 text-right">Betrag</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100 font-mono">
+                              <tr>
+                                <td className="py-1">10</td>
+                                <td className="py-1">730504</td>
+                                <td className="py-1 font-sans">°Gebol Verpackungsband 75mm x 500lfm</td>
+                                <td className="py-1">10 Bli</td>
+                                <td className="py-1 text-right">€36.30</td>
+                              </tr>
+                              <tr>
+                                <td className="py-1">20</td>
+                                <td className="py-1">730505</td>
+                                <td className="py-1 font-sans">°Füllmaterial Verpackung 90g pro m³</td>
+                                <td className="py-1">10 St</td>
+                                <td className="py-1 text-right">€46.10</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                          <div className="text-right text-[10px] text-gray-500 pt-1">Zwischensumme Seite 1: €82.40</div>
+                        </div>
+                      )}
+
+                      {currentDocPage === 2 && (
+                        <div className="space-y-2 border-t border-gray-200 pt-2">
+                          <div className="text-[10px] font-bold text-gray-700">Positionen 30 - 40 (Auftrag 1 / Teil 2):</div>
+                          <table className="w-full text-left text-[10px]">
+                            <thead>
+                              <tr className="border-b border-gray-200 text-gray-500 text-[9px]">
+                                <th className="py-1">Pos</th>
+                                <th className="py-1">Art.Nr</th>
+                                <th className="py-1">Bezeichnung</th>
+                                <th className="py-1">Menge</th>
+                                <th className="py-1 text-right">Betrag</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100 font-mono">
+                              <tr>
+                                <td className="py-1">30</td>
+                                <td className="py-1">709534_10</td>
+                                <td className="py-1 font-sans">Gebol Tragetasche Papier grau 23x34x10cm</td>
+                                <td className="py-1">12 Paa</td>
+                                <td className="py-1 text-right">€20.04</td>
+                              </tr>
+                              <tr>
+                                <td className="py-1">40</td>
+                                <td className="py-1">709534_09</td>
+                                <td className="py-1 font-sans">Gebol Tragetasche Papier weiß magnet</td>
+                                <td className="py-1">12 Paa</td>
+                                <td className="py-1 text-right">€20.04</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                          <div className="text-right text-[10px] text-gray-500 pt-1">Zwischensumme Seite 2: €40.08 | Übertrag: €122.48</div>
+                        </div>
+                      )}
+
+                      {currentDocPage === 3 && (
+                        <div className="space-y-2.5 border-t border-gray-200 pt-2 text-[10px]">
+                          <div className="text-[10px] font-bold text-gray-700">Zusammenfassung & Freigabe (Auftrag 1):</div>
+                          <div className="bg-gray-50 p-2.5 rounded border border-gray-200 space-y-1">
+                            <div className="flex justify-between text-gray-600">
+                              <span>Warenwert Netto (Pos 10-40):</span>
+                              <span className="font-mono font-medium">€122.48</span>
+                            </div>
+                            <div className="flex justify-between text-gray-600">
+                              <span>MwSt (19.00%):</span>
+                              <span className="font-mono font-medium">€23.27</span>
+                            </div>
+                            <div className="flex justify-between text-gray-900 font-bold border-t border-gray-200 pt-1 text-[11px]">
+                              <span>Endbetrag Auftrag 80635109-1:</span>
+                              <span className="font-mono text-emerald-700">€145.75</span>
+                            </div>
+                          </div>
+                          <div className="bg-amber-50/70 border border-amber-200 p-2 rounded text-[9.5px] text-amber-900 space-y-0.5">
+                            <div><strong>Lieferkonditionen:</strong> DDP Oschersleben | Lieferant zum Lager</div>
+                            <div><strong>Hinweis:</strong> Ges.-Nr. 148510. Verbindliche Anlieferung via Cargoclix Portal buchen.</div>
+                            <div className="text-gray-500 pt-1 font-mono">Digitale Freigabe: Stefan Germer (BAUKING Einkauf - 08.07.2026)</div>
+                          </div>
+                        </div>
+                      )}
+
+                      {currentDocPage === 4 && (
+                        <div className="space-y-2 border-t border-gray-200 pt-2">
+                          <div className="text-[10px] font-bold text-gray-700">Positionen 50 - 60 (Auftrag 2 / Teil 1):</div>
+                          <table className="w-full text-left text-[10px]">
+                            <thead>
+                              <tr className="border-b border-gray-200 text-gray-500 text-[9px]">
+                                <th className="py-1">Pos</th>
+                                <th className="py-1">Art.Nr</th>
+                                <th className="py-1">Bezeichnung</th>
+                                <th className="py-1">Menge</th>
+                                <th className="py-1 text-right">Betrag</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100 font-mono">
+                              <tr>
+                                <td className="py-1">50</td>
+                                <td className="py-1">702001</td>
+                                <td className="py-1 font-sans">°Schwarzstahl Handschuh Leder Gr. 9 / L</td>
+                                <td className="py-1">3 Paa</td>
+                                <td className="py-1 text-right">€27.30</td>
+                              </tr>
+                              <tr>
+                                <td className="py-1">60</td>
+                                <td className="py-1">702003</td>
+                                <td className="py-1 font-sans">°Schwarzstahl Handschuh Leder Gr. 10 / XL</td>
+                                <td className="py-1">3 Paa</td>
+                                <td className="py-1 text-right">€34.68</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                          <div className="text-right text-[10px] text-gray-500 pt-1">Zwischensumme Seite 4: €61.98</div>
+                        </div>
+                      )}
+
+                      {currentDocPage === 5 && (
+                        <div className="space-y-2 border-t border-gray-200 pt-2">
+                          <div className="text-[10px] font-bold text-gray-700">Positionen 70 - 90 (Auftrag 2 / Teil 2):</div>
+                          <table className="w-full text-left text-[10px]">
+                            <thead>
+                              <tr className="border-b border-gray-200 text-gray-500 text-[9px]">
+                                <th className="py-1">Pos</th>
+                                <th className="py-1">Art.Nr</th>
+                                <th className="py-1">Bezeichnung</th>
+                                <th className="py-1">Menge</th>
+                                <th className="py-1 text-right">Betrag</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100 font-mono">
+                              <tr>
+                                <td className="py-1">70</td>
+                                <td className="py-1">730502</td>
+                                <td className="py-1 font-sans">°Schwarzstahl Handschuh Leder Gr. 11 / XXL</td>
+                                <td className="py-1">5 Bli</td>
+                                <td className="py-1 text-right">€15.30</td>
+                              </tr>
+                              <tr>
+                                <td className="py-1">80</td>
+                                <td className="py-1">730002</td>
+                                <td className="py-1 font-sans">oHandschuh &quot;Multi Flex&quot; Gr. 9, Let&apos;s do it</td>
+                                <td className="py-1">2 St</td>
+                                <td className="py-1 text-right">€4.94</td>
+                              </tr>
+                              <tr>
+                                <td className="py-1">90</td>
+                                <td className="py-1">91032</td>
+                                <td className="py-1 font-sans">Logistikkosten des Lieferanten</td>
+                                <td className="py-1">1 St</td>
+                                <td className="py-1 text-right">€0.00</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                          <div className="text-right text-[10px] text-gray-500 pt-1">Zwischensumme Seite 5: €20.24 | Übertrag: €82.22</div>
+                        </div>
+                      )}
+
+                      {currentDocPage === 6 && (
+                        <div className="space-y-2.5 border-t border-gray-200 pt-2 text-[10px]">
+                          <div className="text-[10px] font-bold text-gray-700">Zusammenfassung & Freigabe (Auftrag 2):</div>
+                          <div className="bg-gray-50 p-2.5 rounded border border-gray-200 space-y-1">
+                            <div className="flex justify-between text-gray-600">
+                              <span>Warenwert Netto (Pos 50-90):</span>
+                              <span className="font-mono font-medium">€82.22</span>
+                            </div>
+                            <div className="flex justify-between text-gray-600">
+                              <span>MwSt (19.00%):</span>
+                              <span className="font-mono font-medium">€15.62</span>
+                            </div>
+                            <div className="flex justify-between text-gray-900 font-bold border-t border-gray-200 pt-1 text-[11px]">
+                              <span>Endbetrag Auftrag 80635109-2:</span>
+                              <span className="font-mono text-emerald-700">€97.84</span>
+                            </div>
+                          </div>
+                          <div className="bg-amber-50/70 border border-amber-200 p-2 rounded text-[9.5px] text-amber-900 space-y-0.5">
+                            <div><strong>Lieferkonditionen:</strong> DDP Magdeburg | Lieferant zum Lager</div>
+                            <div><strong>Hinweis:</strong> Ges.-Nr. 148510. Anlieferung werktags 07:00-14:00 Uhr via Hub Magdeburg.</div>
+                            <div className="text-gray-500 pt-1 font-mono">Digitale Freigabe: Stefan Germer (BAUKING Einkauf - 08.07.2026)</div>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    /* Standard Single Order Rendering */
+                    <>
+                      <div className="flex justify-between items-start border-b border-gray-200 pb-2">
+                        <div>
+                          <div className="font-bold text-xs text-gray-900">{draftPo.buyer.companyName || 'BAUKING Ostfalen GmbH'}</div>
+                          <div className="text-[10px] text-gray-500">Magdeburger Berg 3, 38350 Helmstedt</div>
+                        </div>
+                        <span className="text-[10px] font-mono text-gray-400">PAGE {currentDocPage} / {totalDocPages}</span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-[10.5px]">
+                        <div>
+                          <span className="text-gray-400 block text-[9.5px]">BESTELLUNG / PO</span>
+                          <strong className="text-gray-900 font-mono text-[11px]">{draftPo.order.poNumber || '80635109'}</strong>
+                        </div>
+                        <div>
+                          <span className="text-gray-400 block text-[9.5px]">DATUM</span>
+                          <span className="text-gray-700 font-mono">{draftPo.order.poDate || '2026-07-08'}</span>
+                        </div>
+                      </div>
+
+                      <div className="border border-gray-100 bg-gray-50/70 p-2 rounded text-[10px] space-y-1">
+                        <div className="text-gray-500 font-medium">Lieferanschrift:</div>
+                        <div className="font-semibold text-gray-800">{draftPo.delivery.recipientName || 'FH Oschersleben'}</div>
+                        <div className="text-gray-600">Schermcker Str. 17, 39387 Oschersleben</div>
+                      </div>
+
+                      {/* Line Items Preview */}
+                      <div className="border-t border-gray-200 pt-2">
+                        <table className="w-full text-left text-[10px]">
+                          <thead>
+                            <tr className="border-b border-gray-200 text-gray-500 text-[9px]">
+                              <th className="py-1">Pos</th>
+                              <th className="py-1">Art.Nr</th>
+                              <th className="py-1">Menge</th>
+                              <th className="py-1 text-right">Betrag</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {draftPo.lineItems.slice((currentDocPage - 1) * itemsPerPage, currentDocPage * itemsPerPage).map((it) => (
+                              <tr key={it.id}>
+                                <td className="py-1 font-mono">{it.itemPos}</td>
+                                <td className="py-1 font-mono">{it.customerArticleNo || it.gebolArticleNo}</td>
+                                <td className="py-1">{it.quantity} {it.unit}</td>
+                                <td className="py-1 text-right font-mono">€{(it.lineTotal || 0).toFixed(2)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
+
+
 
               {/* Bottom Document Toolbar */}
               <div className="p-2 border-t border-gray-200 flex items-center justify-between text-xs bg-white">
@@ -1166,10 +1471,7 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
                         <td className="py-2 px-2 text-center align-top">
                           <button
                             type="button"
-                            onClick={() => {
-                              const updatedItems = draftPo.lineItems.filter((i) => i.id !== item.id);
-                              handleUpdateField({ ...draftPo, lineItems: updatedItems });
-                            }}
+                            onClick={() => setLineItemToDelete(item)}
                             className="text-gray-400 hover:text-red-600 p-1 cursor-pointer transition-colors"
                             title={dict.common.delete}
                           >
@@ -1505,14 +1807,21 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
         );
       })()}
 
-      {/* 🔹 ADD ITEM POSITION MODAL */}
+      {/* 🔹 ADD ITEM POSITION MODAL (ALLOWS ADDING MULTIPLE LINE ITEMS) */}
       {isAddItemModalOpen && (
         <div className="fixed inset-0 bg-black/35 backdrop-blur-[2px] flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
           <div className="bg-white rounded-xl shadow-2xl border border-gray-200 w-full max-w-5xl overflow-hidden flex flex-col max-h-[85vh]">
             <div className="px-6 py-3.5 flex items-center justify-between border-b border-gray-200 bg-white">
-              <h3 className="font-bold text-[17px] text-[#4f4f4e]">
-                {isDe ? 'Position hinzufügen' : 'Add Item Position'}
-              </h3>
+              <div className="flex items-center gap-2.5">
+                <h3 className="font-bold text-[17px] text-[#4f4f4e]">
+                  {isDe ? 'Positionen hinzufügen' : 'Add Line Items'}
+                </h3>
+                {totalSelectedPositionsCount > 0 && (
+                  <span className="text-xs font-semibold text-amber-900 bg-amber-50 border border-amber-300 px-2 py-0.5 rounded-full">
+                    {totalSelectedPositionsCount} {isDe ? 'ausgewählt' : 'selected'}
+                  </span>
+                )}
+              </div>
               <button
                 type="button"
                 onClick={() => setIsAddItemModalOpen(false)}
@@ -1549,14 +1858,14 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
                 </thead>
                 <tbody className="divide-y divide-gray-100 text-xs">
                   {filteredArticlesForAdd.map((art) => {
-                    const isSelected = selectedArticleForAdd?.id === art.id;
-                    const rowQty = isSelected ? addItemQuantity : 0;
+                    const rowQty = selectedArticlesQuantities[art.id] || 0;
+                    const isSelected = rowQty > 0;
 
                     return (
                       <tr
                         key={art.id}
                         className={`transition-colors ${
-                          isSelected && rowQty > 0
+                          isSelected
                             ? 'bg-amber-50/90 ring-1 ring-inset ring-[#F8B800]'
                             : 'hover:bg-gray-50'
                         }`}
@@ -1576,16 +1885,14 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
                           <div className="inline-flex items-center border border-gray-300 rounded-lg overflow-hidden bg-white shadow-2xs">
                             <button
                               type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                const newQty = Math.max(0, rowQty - 1);
-                                if (newQty === 0) {
-                                  if (isSelected) setSelectedArticleForAdd(null);
-                                  setAddItemQuantity(0);
-                                } else {
-                                  setSelectedArticleForAdd(art);
-                                  setAddItemQuantity(newQty);
-                                }
+                              onClick={() => {
+                                const nextQty = Math.max(0, rowQty - 1);
+                                setSelectedArticlesQuantities((prev) => {
+                                  const copy = { ...prev };
+                                  if (nextQty === 0) delete copy[art.id];
+                                  else copy[art.id] = nextQty;
+                                  return copy;
+                                });
                               }}
                               className="p-1.5 hover:bg-gray-100 text-gray-700 transition-colors cursor-pointer"
                             >
@@ -1595,26 +1902,25 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
                               type="number"
                               min="0"
                               value={rowQty}
-                              onClick={(e) => e.stopPropagation()}
                               onChange={(e) => {
                                 const val = Math.max(0, Number(e.target.value) || 0);
-                                if (val === 0) {
-                                  if (isSelected) setSelectedArticleForAdd(null);
-                                  setAddItemQuantity(0);
-                                } else {
-                                  setSelectedArticleForAdd(art);
-                                  setAddItemQuantity(val);
-                                }
+                                setSelectedArticlesQuantities((prev) => {
+                                  const copy = { ...prev };
+                                  if (val === 0) delete copy[art.id];
+                                  else copy[art.id] = val;
+                                  return copy;
+                                });
                               }}
                               className="w-12 text-center py-1 text-xs font-mono font-bold text-gray-900 focus:outline-none border-x border-gray-200"
                             />
                             <button
                               type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                const newQty = rowQty + 1;
-                                setSelectedArticleForAdd(art);
-                                setAddItemQuantity(newQty);
+                              onClick={() => {
+                                const nextQty = rowQty + 1;
+                                setSelectedArticlesQuantities((prev) => ({
+                                  ...prev,
+                                  [art.id]: nextQty,
+                                }));
                               }}
                               className="p-1.5 hover:bg-gray-100 text-gray-700 transition-colors cursor-pointer"
                             >
@@ -1630,21 +1936,108 @@ export const OrderDetailReviewWorkspace: React.FC<OrderDetailReviewWorkspaceProp
             </div>
 
             {/* Modal Footer */}
-            <div className="p-3.5 bg-gray-50 border-t border-gray-200 flex items-center justify-end gap-2">
+            <div className="p-3.5 bg-gray-50 border-t border-gray-200 flex items-center justify-between gap-3">
+              <div className="text-xs text-gray-500 font-medium">
+                {totalSelectedPositionsCount > 0 ? (
+                  <span className="text-gray-700 font-semibold">
+                    {totalSelectedPositionsCount} {isDe ? 'Position(en) ausgewählt' : 'position(s) selected'} (
+                    {totalSelectedQuantity} {isDe ? 'Gesamtmenge' : 'total items'})
+                  </span>
+                ) : (
+                  <span>{isDe ? 'Wählen Sie Mengen für die hinzuzufügenden Artikel aus.' : 'Select quantities for items you wish to add.'}</span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAddItemModalOpen(false)}
+                  className="px-4 py-2 text-xs text-gray-700 hover:bg-gray-100 rounded-lg font-medium cursor-pointer border border-gray-300 bg-white transition-colors"
+                >
+                  {dict.common.cancel}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmAddItem}
+                  disabled={totalSelectedPositionsCount === 0}
+                  className="bg-[#F8B800] hover:bg-[#E0A400] disabled:opacity-50 disabled:cursor-not-allowed text-gray-900 px-5 py-2 text-xs font-bold rounded-lg shadow-2xs cursor-pointer flex items-center gap-1.5 transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>
+                    {isDe
+                      ? totalSelectedPositionsCount > 1
+                        ? `${totalSelectedPositionsCount} Positionen hinzufügen`
+                        : 'Position hinzufügen'
+                      : totalSelectedPositionsCount > 1
+                      ? `Add ${totalSelectedPositionsCount} Positions`
+                      : 'Add Position'}
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🔹 DELETE LINE ITEM CONFIRMATION MODAL */}
+      {lineItemToDelete && (
+        <div
+          onClick={() => setLineItemToDelete(null)}
+          className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px] flex items-center justify-center p-4 animate-in fade-in duration-150"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-xl border border-gray-200 shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col"
+          >
+            <div className="p-5 flex items-start justify-between gap-3.5">
+              <div className="flex items-start gap-3.5">
+                <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0 text-red-600">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-gray-900">
+                    {isDe ? 'Position löschen' : 'Delete Line Position'}
+                  </h3>
+                  <p className="text-xs text-gray-600 mt-1.5 leading-relaxed">
+                    {isDe
+                      ? `Möchten Sie Position ${lineItemToDelete.itemPos} (${lineItemToDelete.description || lineItemToDelete.gebolArticleNo || lineItemToDelete.customerArticleNo}) wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`
+                      : `Are you sure you want to delete Position ${lineItemToDelete.itemPos} (${lineItemToDelete.description || lineItemToDelete.gebolArticleNo || lineItemToDelete.customerArticleNo})? This action cannot be undone.`}
+                  </p>
+                </div>
+              </div>
               <button
                 type="button"
-                onClick={() => setIsAddItemModalOpen(false)}
-                className="px-4 py-2 text-xs text-gray-700 hover:bg-gray-100 rounded-lg font-medium cursor-pointer border border-gray-300 bg-white transition-colors"
+                onClick={() => setLineItemToDelete(null)}
+                className="text-gray-400 hover:text-gray-600 p-1 rounded-md hover:bg-gray-100 cursor-pointer transition-colors"
+                title={dict.common.close}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="bg-gray-50 px-5 py-3.5 border-t border-gray-200 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setLineItemToDelete(null)}
+                className="px-4 py-2 text-xs text-gray-700 hover:bg-gray-100 border border-gray-300 rounded-lg font-medium cursor-pointer transition-colors bg-white"
               >
                 {dict.common.cancel}
               </button>
               <button
                 type="button"
-                onClick={handleConfirmAddItem}
-                className="bg-[#F8B800] hover:bg-[#E0A400] text-gray-900 px-5 py-2 text-xs font-bold rounded-lg shadow-2xs cursor-pointer flex items-center gap-1.5 transition-colors"
+                onClick={() => {
+                  const updatedItems = draftPo.lineItems.filter((i) => i.id !== lineItemToDelete.id);
+                  handleUpdateField({ ...draftPo, lineItems: updatedItems });
+                  toast.info(
+                    isDe ? 'Position gelöscht' : 'Position Deleted',
+                    isDe ? `Position ${lineItemToDelete.itemPos} wurde entfernt.` : `Position ${lineItemToDelete.itemPos} was removed.`
+                  );
+                  setLineItemToDelete(null);
+                }}
+                className="px-4 py-2 text-xs bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg shadow-2xs cursor-pointer transition-colors flex items-center gap-1.5"
               >
-                <Plus className="w-3.5 h-3.5" />
-                <span>{isDe ? 'Position hinzufügen' : 'Add Position'}</span>
+                <Trash2 className="w-3.5 h-3.5 text-white" />
+                <span>{isDe ? 'Position löschen' : 'Delete Position'}</span>
               </button>
             </div>
           </div>

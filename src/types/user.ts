@@ -8,10 +8,22 @@ export interface UserProfile {
   canAccessMasterData: boolean;
 }
 
+const KNOWN_USER_ROLES: Record<string, UserRole> = {
+  'lucas.platzer@gebol.at': 'Super User',
+  'bhoomi.barot@gebol.at': 'Super User',
+  'bhoomi.barot@hiddenbrains.in': 'Normal User',
+  'stefan.gruber@gebol.at': 'Normal User',
+  'maria.huber@gebol.at': 'Normal User',
+  'alexander.weber@gebol.at': 'Normal User',
+  'sophie.leitner@gebol.at': 'Normal User',
+  'christian.kaiser@gebol.at': 'Normal User',
+  'karin.wagner@gebol.at': 'Normal User',
+};
+
 export function getUserProfile(email?: string, selectedRole?: UserRole): UserProfile {
   const normalized = (email || '').trim().toLowerCase();
 
-  // If a role was explicitly selected in the login dropdown, honor it directly!
+  // If a role was explicitly provided, honor it directly
   if (selectedRole) {
     const isSuper = selectedRole === 'Super User' || selectedRole === 'Superadmin';
     const emailToUse = normalized || (isSuper ? 'lucas.platzer@gebol.at' : 'bhoomi.barot@gebol.at');
@@ -36,29 +48,32 @@ export function getUserProfile(email?: string, selectedRole?: UserRole): UserPro
     };
   }
 
-  // Specifically check for Bhoomi Barot: Normal User with NO access to Master Data
-  if (normalized === 'bhoomi.barot@hiddenbrains.in') {
+  // Check known configured user roles first
+  if (normalized && KNOWN_USER_ROLES[normalized]) {
+    const role = KNOWN_USER_ROLES[normalized];
+    const isSuper = role === 'Super User' || role === 'Superadmin';
+    const namePart = normalized.split('@')[0].replace(/[._-]/g, ' ');
+    const capitalizedName = namePart
+      .split(' ')
+      .filter(Boolean)
+      .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
+      .join(' ');
+    const parts = capitalizedName.split(' ');
+    const initials =
+      parts.length > 1
+        ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+        : capitalizedName.slice(0, 2).toUpperCase();
+
     return {
-      email: 'bhoomi.barot@hiddenbrains.in',
-      name: 'Bhoomi Barot',
-      initials: 'BB',
-      role: 'Normal User',
-      canAccessMasterData: false,
+      email: email?.trim() || normalized,
+      name: capitalizedName || (isSuper ? 'Super User' : 'Normal User'),
+      initials,
+      role,
+      canAccessMasterData: isSuper,
     };
   }
 
-  // Specifically check for Lucas Platzer: Super User with full access
-  if (normalized === 'lucas.platzer@gebol.at') {
-    return {
-      email: 'Lucas.Platzer@gebol.at',
-      name: 'Lucas Platzer',
-      initials: 'LP',
-      role: 'Super User',
-      canAccessMasterData: true,
-    };
-  }
-
-  // Default if empty or generic super user
+  // Default if empty
   if (!normalized) {
     return {
       email: 'Lucas.Platzer@gebol.at',

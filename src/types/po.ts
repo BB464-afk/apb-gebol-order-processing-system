@@ -94,4 +94,8 @@ export interface PurchaseOrderRecord {
   rawContentText?: string;
   erpTransmissionId?: string;
   exportedAt?: string;
+  isMultiOrderPdf?: boolean;
+  targetPage?: number;
+  multiOrderTotalPages?: number;
+  multiOrderPageRange?: string;
 }
