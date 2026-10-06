@@ -49,7 +49,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     const trimmedId = loginIdentifier.trim();
 
     if (!trimmedId) {
-      newErrors.loginIdentifier = 'User ID or Email is required';
+      newErrors.loginIdentifier = 'Email is required';
     }
 
     if (!password) {
@@ -69,13 +69,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     }, 250);
   };
 
-  // Step 1: Request OTP for registered email / User ID
+  // Step 1: Request OTP for registered email
   const handleSendOtp = (e: React.FormEvent) => {
     e.preventDefault();
 
     const trimmedEmail = forgotEmail.trim();
     if (!trimmedEmail) {
-      setErrors({ forgotEmail: 'Registered email address or User ID is required' });
+      setErrors({ forgotEmail: 'Registered email address is required' });
       return;
     }
 
@@ -226,16 +226,16 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
               <form onSubmit={handleLoginSubmit} className="space-y-4 text-left" noValidate>
                 <div>
                   <label className="block text-xs font-semibold text-[#4f4f4e] uppercase tracking-wider mb-1.5">
-                    User ID / Email
+                    Email
                   </label>
                   <input
-                    type="text"
+                    type="email"
                     value={loginIdentifier}
                     onChange={(e) => {
                       setLoginIdentifier(e.target.value);
                       clearFieldError('loginIdentifier');
                     }}
-                    placeholder="Enter User ID or Email"
+                    placeholder="Enter your email"
                     className={`w-full px-3.5 py-2.5 bg-white border rounded text-sm text-[#262626] placeholder-[#8f9494] focus:outline-none transition-all ${
                       errors.loginIdentifier
                         ? 'border-red-500 bg-red-50/20 focus:border-red-500 focus:ring-1 focus:ring-red-500'
@@ -314,17 +314,17 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                   Forgot Password
                 </h1>
                 <p className="text-[14px] mt-2 font-light text-[#8f9494]">
-                  Enter your registered User ID or Email to receive an OTP.
+                  Enter your registered email to receive an OTP.
                 </p>
               </div>
 
               <form onSubmit={handleSendOtp} className="space-y-4 text-left" noValidate>
                 <div>
                   <label className="block text-xs font-semibold text-[#4f4f4e] uppercase tracking-wider mb-1.5">
-                    Registered Email / User ID
+                    Registered Email
                   </label>
                   <input
-                    type="text"
+                    type="email"
                     value={forgotEmail}
                     onChange={(e) => {
                       setForgotEmail(e.target.value);
