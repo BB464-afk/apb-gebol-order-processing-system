@@ -1,29 +1,66 @@
 import React, { useState } from 'react';
 import { UserRole } from '../types/user';
+import {
+  Eye,
+  EyeOff,
+  KeyRound,
+  ShieldCheck,
+  CheckCircle2,
+  AlertCircle,
+  ArrowLeft,
+  Lock,
+} from 'lucide-react';
+import {
+  authenticateUser,
+  setUserNewPassword,
+  resetSuperAdminPasswordWithCode,
+  isSuperAdminEmail,
+  verifySuperAdminRecoveryCode,
+} from '../utils/userStore';
 
 interface LoginScreenProps {
   onLogin: (email?: string, role?: UserRole) => void;
 }
 
-type AuthStep = 'login' | 'forgot-email' | 'forgot-otp' | 'forgot-password' | 'forgot-success';
+type AuthStep =
+  | 'login'
+  | 'forgot-email'
+  | 'regular-user-contact-admin'
+  | 'superadmin-recovery'
+  | 'superadmin-recovery-success'
+  | 'create-new-password';
 
 interface FieldErrors {
   loginIdentifier?: string;
   password?: string;
   forgotEmail?: string;
-  otp?: string;
+  recoveryCode?: string;
   newPassword?: string;
   confirmPassword?: string;
+  general?: string;
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   const [step, setStep] = useState<AuthStep>('login');
   const [loginIdentifier, setLoginIdentifier] = useState('');
   const [password, setPassword] = useState('');
+
+  // Password Visibility Toggles
+  const [showPassword, setShowPassword] = useState(false);
+  const [showRecoveryCode, setShowRecoveryCode] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  // Forgot Password Email Field
   const [forgotEmail, setForgotEmail] = useState('');
-  const [otp, setOtp] = useState('');
+
+  // Super Admin Recovery Fields
+  const [recoveryCode, setRecoveryCode] = useState('');
+
+  // New Password Creation Fields (used in Force Change and Super Admin Recovery)
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+
   const [errors, setErrors] = useState<FieldErrors>({});
   const [successNotice, setSuccessNotice] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -40,7 +77,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     }
   };
 
-  // Handle Login Submission
+  // 🔹 1. Handle Login Submission
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setSuccessNotice('');
@@ -63,70 +100,77 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
     setErrors({});
     setIsLoading(true);
+
     setTimeout(() => {
       setIsLoading(false);
-      onLogin(trimmedId);
+      const authResult = authenticateUser(trimmedId, password);
+
+      if (!authResult.success) {
+        setErrors({
+          password: authResult.error || 'Invalid email or password. Please check your credentials.',
+        });
+        return;
+      }
+
+      // If user logged in with temporary password, FORCE Create New Password screen
+      if (authResult.requiresNewPassword) {
+        setNewPassword('');
+        setConfirmPassword('');
+        setShowNewPassword(false);
+        setShowConfirmPassword(false);
+        setStep('create-new-password');
+        return;
+      }
+
+      // Permanent credentials: login directly into the application
+      onLogin(trimmedId, authResult.user?.role);
     }, 250);
   };
 
-  // Step 1: Request OTP for registered email
-  const handleSendOtp = (e: React.FormEvent) => {
+  // 🔹 2. Handle Forgot Password Email Submission (Auto-detects Role)
+  const handleForgotEmailSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-
     const trimmedEmail = forgotEmail.trim();
+
     if (!trimmedEmail) {
       setErrors({ forgotEmail: 'Registered email address is required' });
       return;
     }
 
-    setErrors({});
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      setOtp('');
-      setStep('forgot-otp');
-    }, 300);
-  };
-
-  // Step 2: Verify OTP
-  const handleVerifyOtp = (e: React.FormEvent) => {
-    e.preventDefault();
-
-    const trimmedOtp = otp.trim();
-    if (!trimmedOtp) {
-      setErrors({ otp: 'Verification code (OTP) is required' });
-      return;
-    }
-
-    if (trimmedOtp.length < 4) {
-      setErrors({ otp: 'Please enter a valid verification code' });
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      setErrors({ forgotEmail: 'Please enter a valid email address' });
       return;
     }
 
     setErrors({});
     setIsLoading(true);
+
     setTimeout(() => {
       setIsLoading(false);
-      setNewPassword('');
-      setConfirmPassword('');
-      setStep('forgot-password');
-    }, 300);
+
+      // System automatically identifies role from account/email
+      const isSuper = isSuperAdminEmail(trimmedEmail);
+
+      if (isSuper) {
+        // Super Admin -> Show Recovery Code screen
+        setRecoveryCode('');
+        setNewPassword('');
+        setConfirmPassword('');
+        setShowRecoveryCode(false);
+        setShowNewPassword(false);
+        setShowConfirmPassword(false);
+        setStep('superadmin-recovery');
+      } else {
+        // Regular User -> Show contact Super Admin screen (No OTP/email recovery)
+        setStep('regular-user-contact-admin');
+      }
+    }, 250);
   };
 
-  // Step 2b: Resend OTP
-  const handleResendOtp = () => {
-    setErrors({});
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      setOtp('');
-    }, 300);
-  };
-
-  // Step 3: Set New Password & Confirm Password
-  const handleResetPassword = (e: React.FormEvent) => {
+  // 🔹 3. Handle Create New Password Submission (For Regular User logging in with Temp Password)
+  const handleCreateNewPasswordSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-
     const newErrors: FieldErrors = {};
 
     if (!newPassword) {
@@ -148,9 +192,63 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
     setErrors({});
     setIsLoading(true);
+
     setTimeout(() => {
       setIsLoading(false);
-      setStep('forgot-success');
+      const trimmedEmail = loginIdentifier.trim();
+      const updated = setUserNewPassword(trimmedEmail, newPassword);
+
+      if (updated) {
+        // Successfully created new password -> proceed directly into application
+        onLogin(trimmedEmail);
+      } else {
+        setErrors({ general: 'Failed to update password. Please try again.' });
+      }
+    }, 300);
+  };
+
+  // 🔹 4. Handle Super Admin Recovery Submission (Recovery Code + New Password)
+  const handleSuperAdminRecoverySubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const newErrors: FieldErrors = {};
+    const trimmedAdminEmail = forgotEmail.trim() || loginIdentifier.trim();
+    const trimmedCode = recoveryCode.trim();
+
+    if (!trimmedCode) {
+      newErrors.recoveryCode = 'Recovery Code is required';
+    } else if (!verifySuperAdminRecoveryCode(trimmedCode)) {
+      newErrors.recoveryCode = 'Invalid Recovery Code. Please enter your valid Super Admin Recovery Code.';
+    }
+
+    if (!newPassword) {
+      newErrors.newPassword = 'New password is required';
+    } else if (newPassword.length < 6) {
+      newErrors.newPassword = 'Password must be at least 6 characters';
+    }
+
+    if (!confirmPassword) {
+      newErrors.confirmPassword = 'Confirm password is required';
+    } else if (newPassword && confirmPassword && newPassword !== confirmPassword) {
+      newErrors.confirmPassword = 'Passwords do not match';
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+
+    setErrors({});
+    setIsLoading(true);
+
+    setTimeout(() => {
+      setIsLoading(false);
+      const res = resetSuperAdminPasswordWithCode(trimmedAdminEmail, trimmedCode, newPassword);
+
+      if (res.success) {
+        setStep('superadmin-recovery-success');
+      } else {
+        setErrors({ general: res.error || 'Password recovery failed. Please check your recovery code.' });
+      }
     }, 350);
   };
 
@@ -201,11 +299,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         </div>
       </div>
 
-      {/* 🔹 Center Container: Spacious, aligned with application styling, NO round corners */}
+      {/* 🔹 Center Container: Clean card */}
       <div className="flex-1 flex items-center justify-center my-6 relative z-10">
         <div className="w-full max-w-[460px] bg-white border border-[#E0E0E0] rounded-none shadow-md p-8 sm:p-10 text-center">
-          
-          {/* STEP: LOGIN */}
+
+          {/* ========================================================= */}
+          {/* STEP 1: LOGIN (UNCHANGED CLEAN LOGIN UI)                  */}
+          {/* ========================================================= */}
           {step === 'login' && (
             <div>
               <div className="mb-7">
@@ -224,9 +324,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
               )}
 
               <form onSubmit={handleLoginSubmit} className="space-y-4 text-left" noValidate>
+                {/* Email Field */}
                 <div>
                   <label className="block text-xs font-semibold text-[#4f4f4e] uppercase tracking-wider mb-1.5">
-                    Email
+                    Email ID
                   </label>
                   <input
                     type="email"
@@ -250,45 +351,63 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                   )}
                 </div>
 
+                {/* Password Field with Show/Hide Toggle */}
                 <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="block text-xs font-semibold text-[#4f4f4e] uppercase tracking-wider">
-                      Password
-                    </label>
+                  <label className="block text-xs font-semibold text-[#4f4f4e] uppercase tracking-wider mb-1.5">
+                    Password
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={(e) => {
+                        setPassword(e.target.value);
+                        clearFieldError('password');
+                      }}
+                      placeholder="Enter Password"
+                      className={`w-full px-3.5 py-2.5 pr-10 bg-white border rounded text-sm text-[#262626] placeholder-[#8f9494] focus:outline-none transition-all ${
+                        errors.password
+                          ? 'border-red-500 bg-red-50/20 focus:border-red-500 focus:ring-1 focus:ring-red-500'
+                          : 'border-[#E0E0E0] focus:border-[#f7b611] focus:ring-1 focus:ring-[#f7b611]'
+                      }`}
+                    />
                     <button
                       type="button"
-                      onClick={() => {
-                        setForgotEmail(loginIdentifier);
-                        setErrors({});
-                        setSuccessNotice('');
-                        setStep('forgot-email');
-                      }}
-                      className="text-xs text-[#f7b611] hover:text-[#e2a508] font-medium transition-colors cursor-pointer hover:underline"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer p-1"
+                      title={showPassword ? 'Hide password' : 'Show password'}
                     >
-                      Forgot Password?
+                      {showPassword ? (
+                        <EyeOff className="w-4 h-4 text-gray-500" />
+                      ) : (
+                        <Eye className="w-4 h-4 text-gray-500" />
+                      )}
                     </button>
                   </div>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => {
-                      setPassword(e.target.value);
-                      clearFieldError('password');
-                    }}
-                    placeholder="Enter Password"
-                    className={`w-full px-3.5 py-2.5 bg-white border rounded text-sm text-[#262626] placeholder-[#8f9494] focus:outline-none transition-all ${
-                      errors.password
-                        ? 'border-red-500 bg-red-50/20 focus:border-red-500 focus:ring-1 focus:ring-red-500'
-                        : 'border-[#E0E0E0] focus:border-[#f7b611] focus:ring-1 focus:ring-[#f7b611]'
-                    }`}
-                  />
                   {errors.password && (
                     <p className="mt-1 text-xs text-red-600 font-medium">
                       {errors.password}
                     </p>
                   )}
+
+                  {/* Forgot Password Link - Positioned Below Password Field */}
+                  <div className="flex justify-end mt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setErrors({});
+                        setSuccessNotice('');
+                        setForgotEmail(loginIdentifier);
+                        setStep('forgot-email');
+                      }}
+                      className="text-xs text-[#f7b611] hover:text-[#e2a508] font-semibold transition-colors cursor-pointer hover:underline"
+                    >
+                      Forgot Password?
+                    </button>
+                  </div>
                 </div>
 
+                {/* Login Button */}
                 <div className="pt-2">
                   <button
                     type="submit"
@@ -306,19 +425,22 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
             </div>
           )}
 
-          {/* STEP: FORGOT PASSWORD - REGISTERED EMAIL */}
+          {/* ========================================================= */}
+          {/* STEP 2: FORGOT PASSWORD - ASK REGISTERED EMAIL            */}
+          {/* (No role selection - System automatically detects role)   */}
+          {/* ========================================================= */}
           {step === 'forgot-email' && (
             <div>
               <div className="mb-7">
                 <h1 className="text-2xl font-bold tracking-tight page-header-title text-[#4f4f4e]">
-                  Forgot Password
+                  Reset Password
                 </h1>
                 <p className="text-[14px] mt-2 font-light text-[#8f9494]">
-                  Enter your registered email to receive an OTP.
+                  Enter your registered email address to proceed.
                 </p>
               </div>
 
-              <form onSubmit={handleSendOtp} className="space-y-4 text-left" noValidate>
+              <form onSubmit={handleForgotEmailSubmit} className="space-y-4 text-left" noValidate>
                 <div>
                   <label className="block text-xs font-semibold text-[#4f4f4e] uppercase tracking-wider mb-1.5">
                     Registered Email
@@ -345,7 +467,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                   )}
                 </div>
 
-                <div className="pt-2 space-y-3">
+                <div className="pt-2 space-y-2.5">
                   <button
                     type="submit"
                     disabled={isLoading}
@@ -354,7 +476,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                     {isLoading ? (
                       <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin shrink-0" />
                     ) : (
-                      <span className="text-white font-semibold">Send OTP</span>
+                      <span className="text-white font-semibold">Continue</span>
                     )}
                   </button>
 
@@ -373,115 +495,152 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
             </div>
           )}
 
-          {/* STEP: FORGOT PASSWORD - OTP VERIFICATION */}
-          {step === 'forgot-otp' && (
-            <div>
-              <div className="mb-7">
+          {/* ========================================================= */}
+          {/* STEP 3A: REGULAR USER - CONTACT SUPER ADMIN MESSAGE       */}
+          {/* (Identified as regular user: no email/OTP recovery)       */}
+          {/* ========================================================= */}
+          {step === 'regular-user-contact-admin' && (
+            <div className="space-y-6 text-center animate-in fade-in duration-200">
+              <div className="w-12 h-12 bg-amber-50 border border-amber-200 rounded-full flex items-center justify-center mx-auto text-[#ED6C02] shadow-2xs">
+                <KeyRound className="w-6 h-6 text-[#ED6C02]" />
+              </div>
+
+              <div>
                 <h1 className="text-2xl font-bold tracking-tight page-header-title text-[#4f4f4e]">
-                  OTP Verification
+                  Forgot your password?
                 </h1>
-                <p className="text-[14px] mt-2 font-light text-[#8f9494]">
-                  Enter the verification code sent to <span className="font-semibold text-[#4f4f4e]">{forgotEmail}</span>
+                <p className="text-[15px] mt-3 font-semibold text-[#4f4f4e] leading-relaxed">
+                  Please contact your Super Admin to reset your password they can generate a secure temporary password for your account
                 </p>
               </div>
 
-              <form onSubmit={handleVerifyOtp} className="space-y-4 text-left" noValidate>
+              <div className="bg-amber-50/70 border border-amber-200/80 rounded p-3 text-xs text-amber-950 text-left">
+                <div className="flex justify-between items-center text-[11px] text-amber-900 font-medium">
+                  <span>Account Email:</span>
+                  <span className="font-mono font-bold text-[#1A1A1A]">{forgotEmail}</span>
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLoginIdentifier(forgotEmail);
+                    setErrors({});
+                    setStep('login');
+                  }}
+                  className="w-full bg-[#f7b611] hover:bg-[#e2a508] active:bg-[#c99400] text-white font-semibold py-2.5 px-4 rounded text-sm flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs select-none"
+                >
+                  <ArrowLeft className="w-4 h-4 text-white" />
+                  <span className="text-white font-semibold">Back to Login</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================= */}
+          {/* STEP 3B: SUPER ADMIN RECOVERY (RECOVERY CODE + NEW PASS)  */}
+          {/* ========================================================= */}
+          {step === 'superadmin-recovery' && (
+            <div className="space-y-5 text-left animate-in fade-in duration-200">
+              <div className="text-center">
+                <div className="w-12 h-12 bg-amber-50 border border-amber-200 rounded-full flex items-center justify-center mx-auto text-[#ED6C02] shadow-2xs mb-3">
+                  <Lock className="w-6 h-6 text-[#ED6C02]" />
+                </div>
+                <h1 className="text-2xl font-bold tracking-tight page-header-title text-[#4f4f4e]">
+                  Super Admin Password Recovery
+                </h1>
+                <p className="text-[13.5px] text-[#8f9494] mt-2 font-light">
+                  Enter your Recovery Code to reset your password.
+                </p>
+              </div>
+
+              <div className="bg-amber-50/60 border border-amber-200 rounded p-2.5 text-xs text-amber-900 flex justify-between items-center">
+                <span className="font-medium text-gray-600">Super Admin:</span>
+                <span className="font-mono font-bold text-gray-900">{forgotEmail}</span>
+              </div>
+
+              {errors.general && (
+                <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded">
+                  {errors.general}
+                </div>
+              )}
+
+              <form onSubmit={handleSuperAdminRecoverySubmit} className="space-y-4" noValidate>
+                {/* Recovery Code */}
                 <div>
                   <label className="block text-xs font-semibold text-[#4f4f4e] uppercase tracking-wider mb-1.5">
-                    Verification Code (OTP)
+                    Recovery Code
                   </label>
-                  <input
-                    type="text"
-                    maxLength={6}
-                    value={otp}
-                    onChange={(e) => {
-                      setOtp(e.target.value);
-                      clearFieldError('otp');
-                    }}
-                    placeholder="Enter OTP"
-                    className={`w-full px-3.5 py-2.5 bg-white border rounded text-center font-mono text-base tracking-widest text-[#262626] placeholder-[#8f9494] focus:outline-none transition-all ${
-                      errors.otp
-                        ? 'border-red-500 bg-red-50/20 focus:border-red-500 focus:ring-1 focus:ring-red-500'
-                        : 'border-[#E0E0E0] focus:border-[#f7b611] focus:ring-1 focus:ring-[#f7b611]'
-                    }`}
-                    autoFocus
-                  />
-                  {errors.otp && (
-                    <p className="mt-1 text-xs text-red-600 font-medium text-center">
-                      {errors.otp}
+                  <div className="relative">
+                    <input
+                      type={showRecoveryCode ? 'text' : 'password'}
+                      value={recoveryCode}
+                      onChange={(e) => {
+                        setRecoveryCode(e.target.value);
+                        clearFieldError('recoveryCode');
+                      }}
+                      placeholder="Enter Recovery Code (e.g. GEBOL2026)"
+                      className={`w-full px-3.5 py-2.5 pr-10 bg-white border rounded text-sm font-mono text-[#262626] placeholder-[#8f9494] focus:outline-none transition-all ${
+                        errors.recoveryCode
+                          ? 'border-red-500 bg-red-50/20 focus:border-red-500 focus:ring-1 focus:ring-red-500'
+                          : 'border-[#E0E0E0] focus:border-[#f7b611] focus:ring-1 focus:ring-[#f7b611]'
+                      }`}
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowRecoveryCode(!showRecoveryCode)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer p-1"
+                      title={showRecoveryCode ? 'Hide code' : 'Show code'}
+                    >
+                      {showRecoveryCode ? (
+                        <EyeOff className="w-4 h-4 text-gray-500" />
+                      ) : (
+                        <Eye className="w-4 h-4 text-gray-500" />
+                      )}
+                    </button>
+                  </div>
+                  {errors.recoveryCode && (
+                    <p className="mt-1 text-xs text-red-600 font-medium">
+                      {errors.recoveryCode}
                     </p>
                   )}
                 </div>
 
-                <div className="pt-2 space-y-3">
-                  <button
-                    type="submit"
-                    disabled={isLoading}
-                    className="w-full bg-[#f7b611] hover:bg-[#e2a508] active:bg-[#c99400] text-white font-semibold py-2.5 px-4 rounded text-sm flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs select-none disabled:opacity-70 disabled:cursor-not-allowed"
-                  >
-                    {isLoading ? (
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin shrink-0" />
-                    ) : (
-                      <span className="text-white font-semibold">Verify OTP</span>
-                    )}
-                  </button>
-
-                  <div className="flex items-center justify-between text-xs pt-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setErrors({});
-                        setStep('forgot-email');
-                      }}
-                      className="text-[#8f9494] hover:text-[#4f4f4e] font-medium transition-colors cursor-pointer"
-                    >
-                      Change Email
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleResendOtp}
-                      className="text-[#f7b611] hover:text-[#e2a508] font-medium transition-colors cursor-pointer hover:underline"
-                    >
-                      Resend OTP
-                    </button>
-                  </div>
-                </div>
-              </form>
-            </div>
-          )}
-
-          {/* STEP: FORGOT PASSWORD - NEW PASSWORD & CONFIRM PASSWORD */}
-          {step === 'forgot-password' && (
-            <div>
-              <div className="mb-7">
-                <h1 className="text-2xl font-bold tracking-tight page-header-title text-[#4f4f4e]">
-                  Set New Password
-                </h1>
-                <p className="text-[14px] mt-2 font-light text-[#8f9494]">
-                  Enter your new password and confirm it.
-                </p>
-              </div>
-
-              <form onSubmit={handleResetPassword} className="space-y-4 text-left" noValidate>
+                {/* New Password */}
                 <div>
                   <label className="block text-xs font-semibold text-[#4f4f4e] uppercase tracking-wider mb-1.5">
                     New Password
                   </label>
-                  <input
-                    type="password"
-                    value={newPassword}
-                    onChange={(e) => {
-                      setNewPassword(e.target.value);
-                      clearFieldError('newPassword');
-                    }}
-                    placeholder="Enter new password"
-                    className={`w-full px-3.5 py-2.5 bg-white border rounded text-sm text-[#262626] placeholder-[#8f9494] focus:outline-none transition-all ${
-                      errors.newPassword
-                        ? 'border-red-500 bg-red-50/20 focus:border-red-500 focus:ring-1 focus:ring-red-500'
-                        : 'border-[#E0E0E0] focus:border-[#f7b611] focus:ring-1 focus:ring-[#f7b611]'
-                    }`}
-                    autoFocus
-                  />
+                  <div className="relative">
+                    <input
+                      type={showNewPassword ? 'text' : 'password'}
+                      value={newPassword}
+                      onChange={(e) => {
+                        setNewPassword(e.target.value);
+                        clearFieldError('newPassword');
+                      }}
+                      placeholder="Enter new password"
+                      className={`w-full px-3.5 py-2.5 pr-10 bg-white border rounded text-sm text-[#262626] placeholder-[#8f9494] focus:outline-none transition-all ${
+                        errors.newPassword
+                          ? 'border-red-500 bg-red-50/20 focus:border-red-500 focus:ring-1 focus:ring-red-500'
+                          : 'border-[#E0E0E0] focus:border-[#f7b611] focus:ring-1 focus:ring-[#f7b611]'
+                      }`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer p-1"
+                      title={showNewPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showNewPassword ? (
+                        <EyeOff className="w-4 h-4 text-gray-500" />
+                      ) : (
+                        <Eye className="w-4 h-4 text-gray-500" />
+                      )}
+                    </button>
+                  </div>
                   {errors.newPassword && (
                     <p className="mt-1 text-xs text-red-600 font-medium">
                       {errors.newPassword}
@@ -489,24 +648,39 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                   )}
                 </div>
 
+                {/* Confirm New Password */}
                 <div>
                   <label className="block text-xs font-semibold text-[#4f4f4e] uppercase tracking-wider mb-1.5">
-                    Confirm Password
+                    Confirm New Password
                   </label>
-                  <input
-                    type="password"
-                    value={confirmPassword}
-                    onChange={(e) => {
-                      setConfirmPassword(e.target.value);
-                      clearFieldError('confirmPassword');
-                    }}
-                    placeholder="Confirm new password"
-                    className={`w-full px-3.5 py-2.5 bg-white border rounded text-sm text-[#262626] placeholder-[#8f9494] focus:outline-none transition-all ${
-                      errors.confirmPassword
-                        ? 'border-red-500 bg-red-50/20 focus:border-red-500 focus:ring-1 focus:ring-red-500'
-                        : 'border-[#E0E0E0] focus:border-[#f7b611] focus:ring-1 focus:ring-[#f7b611]'
-                    }`}
-                  />
+                  <div className="relative">
+                    <input
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      value={confirmPassword}
+                      onChange={(e) => {
+                        setConfirmPassword(e.target.value);
+                        clearFieldError('confirmPassword');
+                      }}
+                      placeholder="Confirm new password"
+                      className={`w-full px-3.5 py-2.5 pr-10 bg-white border rounded text-sm text-[#262626] placeholder-[#8f9494] focus:outline-none transition-all ${
+                        errors.confirmPassword
+                          ? 'border-red-500 bg-red-50/20 focus:border-red-500 focus:ring-1 focus:ring-red-500'
+                          : 'border-[#E0E0E0] focus:border-[#f7b611] focus:ring-1 focus:ring-[#f7b611]'
+                      }`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer p-1"
+                      title={showConfirmPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showConfirmPassword ? (
+                        <EyeOff className="w-4 h-4 text-gray-500" />
+                      ) : (
+                        <Eye className="w-4 h-4 text-gray-500" />
+                      )}
+                    </button>
+                  </div>
                   {errors.confirmPassword && (
                     <p className="mt-1 text-xs text-red-600 font-medium">
                       {errors.confirmPassword}
@@ -514,7 +688,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                   )}
                 </div>
 
-                <div className="pt-2 space-y-3">
+                {/* Actions */}
+                <div className="pt-2 space-y-2.5">
                   <button
                     type="submit"
                     disabled={isLoading}
@@ -523,7 +698,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                     {isLoading ? (
                       <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin shrink-0" />
                     ) : (
-                      <span className="text-white font-semibold">Update Password</span>
+                      <span className="text-white font-semibold">Reset Password</span>
                     )}
                   </button>
 
@@ -531,32 +706,32 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                     type="button"
                     onClick={() => {
                       setErrors({});
-                      setStep('login');
+                      setStep('forgot-email');
                     }}
                     className="w-full text-center text-xs text-[#8f9494] hover:text-[#4f4f4e] font-medium py-1 transition-colors cursor-pointer"
                   >
-                    Cancel
+                    Change Email
                   </button>
                 </div>
               </form>
             </div>
           )}
 
-          {/* STEP: FORGOT PASSWORD - SUCCESS & PROCEED TO LOGIN */}
-          {step === 'forgot-success' && (
-            <div className="space-y-5">
+          {/* ========================================================= */}
+          {/* STEP 4: SUPER ADMIN RECOVERY SUCCESS                      */}
+          {/* ========================================================= */}
+          {step === 'superadmin-recovery-success' && (
+            <div className="space-y-5 animate-in fade-in duration-200">
               <div className="w-12 h-12 bg-emerald-50 border border-emerald-200 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-xs">
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
-                </svg>
+                <CheckCircle2 className="w-6 h-6 text-emerald-600" />
               </div>
 
               <div>
                 <h1 className="text-2xl font-bold tracking-tight page-header-title text-[#4f4f4e]">
-                  Password Reset Complete
+                  Password Reset Successful
                 </h1>
                 <p className="text-[14px] mt-2 font-light text-[#8f9494]">
-                  Your password has been successfully updated. You can now log in with your new credentials.
+                  You can now log in with your new password.
                 </p>
               </div>
 
@@ -567,7 +742,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                     setLoginIdentifier(forgotEmail);
                     setPassword('');
                     setErrors({});
-                    setSuccessNotice('Password updated successfully. Please enter your new password to login.');
+                    setSuccessNotice('Password reset successful. Please sign in with your new password.');
                     setStep('login');
                   }}
                   className="w-full bg-[#f7b611] hover:bg-[#e2a508] active:bg-[#c99400] text-white font-semibold py-2.5 px-4 rounded text-sm flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs select-none"
@@ -577,6 +752,137 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
               </div>
             </div>
           )}
+
+          {/* ========================================================= */}
+          {/* STEP 5: CREATE NEW PASSWORD (FORCED ON TEMP PASS LOGIN)   */}
+          {/* ========================================================= */}
+          {step === 'create-new-password' && (
+            <div className="space-y-5 text-left animate-in fade-in duration-200">
+              <div className="text-center">
+                <div className="w-12 h-12 bg-amber-50 border border-amber-200 rounded-full flex items-center justify-center mx-auto text-[#ED6C02] shadow-2xs mb-3">
+                  <ShieldCheck className="w-6 h-6 text-[#ED6C02]" />
+                </div>
+                <h1 className="text-2xl font-bold tracking-tight page-header-title text-[#4f4f4e]">
+                  Create New Password
+                </h1>
+                <p className="text-xs text-[#8f9494] mt-2 font-light">
+                  You logged in with a temporary password. Please create a new password to continue.
+                </p>
+              </div>
+
+              <div className="bg-amber-50/70 border border-amber-200 rounded p-2.5 text-[11.5px] text-amber-900 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-[#F8B800] shrink-0 mt-0.5" />
+                <span className="leading-snug">
+                  You cannot proceed into the application until you create and confirm your new permanent password.
+                </span>
+              </div>
+
+              {errors.general && (
+                <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded">
+                  {errors.general}
+                </div>
+              )}
+
+              <form onSubmit={handleCreateNewPasswordSubmit} className="space-y-4" noValidate>
+                {/* New Password */}
+                <div>
+                  <label className="block text-xs font-semibold text-[#4f4f4e] uppercase tracking-wider mb-1.5">
+                    New Password
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showNewPassword ? 'text' : 'password'}
+                      value={newPassword}
+                      onChange={(e) => {
+                        setNewPassword(e.target.value);
+                        clearFieldError('newPassword');
+                      }}
+                      placeholder="Enter new password"
+                      className={`w-full px-3.5 py-2.5 pr-10 bg-white border rounded text-sm text-[#262626] placeholder-[#8f9494] focus:outline-none transition-all ${
+                        errors.newPassword
+                          ? 'border-red-500 bg-red-50/20 focus:border-red-500 focus:ring-1 focus:ring-red-500'
+                          : 'border-[#E0E0E0] focus:border-[#f7b611] focus:ring-1 focus:ring-[#f7b611]'
+                      }`}
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer p-1"
+                      title={showNewPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showNewPassword ? (
+                        <EyeOff className="w-4 h-4 text-gray-500" />
+                      ) : (
+                        <Eye className="w-4 h-4 text-gray-500" />
+                      )}
+                    </button>
+                  </div>
+                  {errors.newPassword && (
+                    <p className="mt-1 text-xs text-red-600 font-medium">
+                      {errors.newPassword}
+                    </p>
+                  )}
+                </div>
+
+                {/* Confirm New Password */}
+                <div>
+                  <label className="block text-xs font-semibold text-[#4f4f4e] uppercase tracking-wider mb-1.5">
+                    Confirm New Password
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      value={confirmPassword}
+                      onChange={(e) => {
+                        setConfirmPassword(e.target.value);
+                        clearFieldError('confirmPassword');
+                      }}
+                      placeholder="Confirm new password"
+                      className={`w-full px-3.5 py-2.5 pr-10 bg-white border rounded text-sm text-[#262626] placeholder-[#8f9494] focus:outline-none transition-all ${
+                        errors.confirmPassword
+                          ? 'border-red-500 bg-red-50/20 focus:border-red-500 focus:ring-1 focus:ring-red-500'
+                          : 'border-[#E0E0E0] focus:border-[#f7b611] focus:ring-1 focus:ring-[#f7b611]'
+                      }`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer p-1"
+                      title={showConfirmPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showConfirmPassword ? (
+                        <EyeOff className="w-4 h-4 text-gray-500" />
+                      ) : (
+                        <Eye className="w-4 h-4 text-gray-500" />
+                      )}
+                    </button>
+                  </div>
+                  {errors.confirmPassword && (
+                    <p className="mt-1 text-xs text-red-600 font-medium">
+                      {errors.confirmPassword}
+                    </p>
+                  )}
+                </div>
+
+                {/* Set New Password Button */}
+                <div className="pt-2">
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="w-full bg-[#f7b611] hover:bg-[#e2a508] active:bg-[#c99400] text-white font-semibold py-2.5 px-4 rounded text-sm flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs select-none disabled:opacity-70 disabled:cursor-not-allowed"
+                  >
+                    {isLoading ? (
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin shrink-0" />
+                    ) : (
+                      <span className="text-white font-semibold">Set New Password</span>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
         </div>
       </div>
 

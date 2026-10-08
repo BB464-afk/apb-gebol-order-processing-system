@@ -357,7 +357,25 @@ export interface Translations {
       normalUser: string;
     };
     changeRoleBtn: string;
+    resetPasswordBtn: string;
     deleteBtn: string;
+    resetPasswordModal: {
+      title: string;
+      confirmPrompt: string;
+      infoNotice: string;
+      cancelBtn: string;
+      confirmBtn: string;
+    };
+    tempPasswordModal: {
+      title: string;
+      subtitle: string;
+      tempPasswordLabel: string;
+      copyBtn: string;
+      copiedNotice: string;
+      shareNotice: string;
+      forceChangeNotice: string;
+      closeBtn: string;
+    };
     addUserModal: {
       title: string;
       emailLabel: string;
@@ -826,7 +844,25 @@ export const translations: Record<Language, Translations> = {
         normalUser: 'Normal User',
       },
       changeRoleBtn: 'Change Role',
+      resetPasswordBtn: 'Reset Password',
       deleteBtn: 'Delete',
+      resetPasswordModal: {
+        title: 'Reset User Password',
+        confirmPrompt: 'Are you sure you want to reset the password for {email}?',
+        infoNotice: 'On confirmation, a secure temporary password will be generated. The user must set a new password upon their next login.',
+        cancelBtn: 'Cancel',
+        confirmBtn: 'Reset Password',
+      },
+      tempPasswordModal: {
+        title: 'Password Reset Successful',
+        subtitle: 'A temporary password has been generated for {email}.',
+        tempPasswordLabel: 'Temporary Password',
+        copyBtn: 'Copy Password',
+        copiedNotice: 'Password copied to clipboard!',
+        shareNotice: 'Share this temporary password securely with the user.',
+        forceChangeNotice: 'The user will be required to create a new password after logging in.',
+        closeBtn: 'Done',
+      },
       addUserModal: {
         title: 'Add New User',
         emailLabel: 'Email Address',
@@ -1288,7 +1324,25 @@ export const translations: Record<Language, Translations> = {
         normalUser: 'Standardbenutzer',
       },
       changeRoleBtn: 'Rolle ändern',
+      resetPasswordBtn: 'Passwort zurücksetzen',
       deleteBtn: 'Löschen',
+      resetPasswordModal: {
+        title: 'Benutzerpasswort zurücksetzen',
+        confirmPrompt: 'Möchten Sie das Passwort für {email} wirklich zurücksetzen?',
+        infoNotice: 'Nach Bestätigung wird ein sicheres temporäres Passwort generiert. Der Benutzer muss sich bei der nächsten Anmeldung ein neues Passwort erstellen.',
+        cancelBtn: 'Abbrechen',
+        confirmBtn: 'Passwort zurücksetzen',
+      },
+      tempPasswordModal: {
+        title: 'Passwort-Reset erfolgreich',
+        subtitle: 'Ein temporäres Passwort wurde für {email} generiert.',
+        tempPasswordLabel: 'Temporäres Passwort',
+        copyBtn: 'Passwort kopieren',
+        copiedNotice: 'Passwort in die Zwischenablage kopiert!',
+        shareNotice: 'Geben Sie dieses temporäre Passwort sicher an den Benutzer weiter.',
+        forceChangeNotice: 'Der Benutzer muss nach der Anmeldung ein neues Passwort erstellen.',
+        closeBtn: 'Fertig',
+      },
       addUserModal: {
         title: 'Neuen Benutzer hinzufügen',
         emailLabel: 'E-Mail-Adresse',

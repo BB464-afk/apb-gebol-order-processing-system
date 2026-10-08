@@ -24,7 +24,14 @@ import {
   XCircle,
   ArrowLeft,
   ShieldAlert,
+  KeyRound,
+  Copy,
 } from 'lucide-react';
+import {
+  getStoredUsers,
+  saveStoredUsers,
+  resetUserPasswordByAdmin,
+} from '../utils/userStore';
 
 export interface UserRecord {
   id: string;
@@ -76,8 +83,11 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
   const { language, dict } = useLanguage();
   const isDe = language === 'de';
 
-  // Master Users State
-  const [users, setUsers] = useState<UserRecord[]>(INITIAL_USERS);
+  // Master Users State (synced with userStore)
+  const [users, setUsers] = useState<UserRecord[]>(() => {
+    const stored = getStoredUsers();
+    return stored.map((u) => ({ id: u.id, email: u.email, role: u.role }));
+  });
 
   // Search & Filter State
   const [searchTerm, setSearchTerm] = useState('');
@@ -94,6 +104,14 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
 
   // Delete User Modal State
   const [userToDelete, setUserToDelete] = useState<UserRecord | null>(null);
+
+  // Reset Password Modal State
+  const [userToResetPassword, setUserToResetPassword] = useState<UserRecord | null>(null);
+  const [tempPasswordGenerated, setTempPasswordGenerated] = useState<{
+    email: string;
+    tempPass: string;
+  } | null>(null);
+  const [isCopied, setIsCopied] = useState(false);
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -166,7 +184,21 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
       role: newRole,
     };
 
-    setUsers((prev) => [newUserRecord, ...prev]);
+    const nextUsers = [newUserRecord, ...users];
+    setUsers(nextUsers);
+    saveStoredUsers(
+      nextUsers.map((u) => {
+        const existing = getStoredUsers().find((su) => su.email.toLowerCase() === u.email.toLowerCase());
+        return {
+          id: u.id,
+          email: u.email,
+          role: u.role,
+          password: existing?.password || 'password123',
+          isTemporaryPassword: existing?.isTemporaryPassword || false,
+          temporaryPassword: existing?.temporaryPassword,
+        };
+      })
+    );
     setIsAddUserModalOpen(false);
     setNewEmail('');
     setNewRole('Normal User');
@@ -220,7 +252,21 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
   const handleConfirmDelete = () => {
     if (!userToDelete) return;
     const email = userToDelete.email;
-    setUsers((prev) => prev.filter((u) => u.id !== userToDelete.id));
+    const nextUsers = users.filter((u) => u.id !== userToDelete.id);
+    setUsers(nextUsers);
+    saveStoredUsers(
+      nextUsers.map((u) => {
+        const existing = getStoredUsers().find((su) => su.email.toLowerCase() === u.email.toLowerCase());
+        return {
+          id: u.id,
+          email: u.email,
+          role: u.role,
+          password: existing?.password || 'password123',
+          isTemporaryPassword: existing?.isTemporaryPassword || false,
+          temporaryPassword: existing?.temporaryPassword,
+        };
+      })
+    );
     setUserToDelete(null);
 
     toast.success(
@@ -271,8 +317,20 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
       return;
     }
 
-    setUsers((prev) =>
-      prev.map((u) => (u.id === userToChangeRole.id ? { ...u, role: selectedNewRole } : u))
+    const nextUsers = users.map((u) => (u.id === userToChangeRole.id ? { ...u, role: selectedNewRole } : u));
+    setUsers(nextUsers);
+    saveStoredUsers(
+      nextUsers.map((u) => {
+        const existing = getStoredUsers().find((su) => su.email.toLowerCase() === u.email.toLowerCase());
+        return {
+          id: u.id,
+          email: u.email,
+          role: u.role,
+          password: existing?.password || 'password123',
+          isTemporaryPassword: existing?.isTemporaryPassword || false,
+          temporaryPassword: existing?.temporaryPassword,
+        };
+      })
     );
 
     toast.success(
@@ -285,6 +343,60 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
     );
 
     setUserToChangeRole(null);
+  };
+
+  // 🔹 Handlers for Reset Password
+  const handleInitiateResetPassword = (user: UserRecord) => {
+    setUserToResetPassword(user);
+    setIsCopied(false);
+  };
+
+  const handleConfirmResetPassword = () => {
+    if (!userToResetPassword) return;
+    const targetEmail = userToResetPassword.email;
+    const res = resetUserPasswordByAdmin(targetEmail);
+
+    if (res.success && res.temporaryPassword) {
+      setTempPasswordGenerated({
+        email: targetEmail,
+        tempPass: res.temporaryPassword,
+      });
+
+      toast.success(
+        dict.userManagement.tempPasswordModal.title,
+        `Temporary password: ${res.temporaryPassword}`
+      );
+
+      addNotification({
+        scenario: 'manual_review',
+        title: isDe ? 'Passwort zurückgesetzt' : 'Password Reset',
+        message: isDe
+          ? `Temporäres Passwort für ${targetEmail} wurde generiert.`
+          : `Temporary password has been generated for ${targetEmail}.`,
+        severity: 'info',
+        relatedEntityId: targetEmail,
+        relatedEntityType: 'user_management',
+        actionLabel: 'View Users',
+        actionLabelDe: 'Benutzer anzeigen',
+        actionNav: 'user-management',
+      });
+    } else {
+      toast.error('Reset Failed', 'Failed to generate temporary password.');
+    }
+
+    setUserToResetPassword(null);
+  };
+
+  const handleCopyTempPassword = () => {
+    if (!tempPasswordGenerated) return;
+    navigator.clipboard.writeText(tempPasswordGenerated.tempPass).then(() => {
+      setIsCopied(true);
+      toast.success('Copied', dict.userManagement.tempPasswordModal.copiedNotice);
+      setTimeout(() => setIsCopied(false), 3000);
+    }).catch(() => {
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 3000);
+    });
   };
 
   // 🔹 Handlers for Export
@@ -446,6 +558,15 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
 
     // Full replacement: replaces existing user list with imported data
     setUsers(newRecords);
+    saveStoredUsers(
+      newRecords.map((u) => ({
+        id: u.id,
+        email: u.email,
+        role: u.role,
+        password: 'password123',
+        isTemporaryPassword: false,
+      }))
+    );
     setIsImportModalOpen(false);
     setHasParsedImport(false);
     setImportPreviews([]);
@@ -752,6 +873,17 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                           >
                             <Edit2 className="w-3 h-3 text-gray-500" />
                             <span>{dict.userManagement.changeRoleBtn}</span>
+                          </button>
+
+                          {/* Reset Password Button */}
+                          <button
+                            type="button"
+                            onClick={() => handleInitiateResetPassword(user)}
+                            title={dict.userManagement.resetPasswordBtn}
+                            className="px-2.5 py-1 bg-white hover:bg-amber-50/60 text-amber-800 hover:text-amber-900 font-semibold rounded text-xs border border-amber-300 cursor-pointer shadow-2xs inline-flex items-center gap-1.5 transition-colors"
+                          >
+                            <KeyRound className="w-3 h-3 text-[#ED6C02]" />
+                            <span>{dict.userManagement.resetPasswordBtn}</span>
                           </button>
 
                           {/* Delete Button */}
@@ -1074,6 +1206,201 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 🔹 6b. RESET PASSWORD CONFIRMATION MODAL */}
+      {userToResetPassword && (
+        <div
+          className={`fixed inset-0 z-50 ${
+            isThemeB ? 'bg-black/60 backdrop-blur-xs' : 'bg-black/25 backdrop-blur-[2px]'
+          } flex items-center justify-center p-4 font-sans`}
+        >
+          <div className="bg-white rounded-lg border border-[#E0E0E0] shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div
+              className={`p-4 flex items-center justify-between border-b ${
+                isThemeB
+                  ? 'bg-[#1A1A1A] text-white border-amber-400'
+                  : 'bg-gray-50 text-gray-900 border-gray-200'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <KeyRound className="w-4 h-4 text-[#F8B800]" />
+                <h3 className="font-bold text-[15px] tracking-tight">
+                  {dict.userManagement.resetPasswordModal.title}
+                </h3>
+              </div>
+              <button
+                onClick={() => setUserToResetPassword(null)}
+                className="cursor-pointer p-1 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-200 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-5 space-y-4 text-xs">
+              <p className="text-gray-800 text-sm leading-relaxed">
+                {dict.userManagement.resetPasswordModal.confirmPrompt.replace(
+                  '{email}',
+                  userToResetPassword.email
+                )}
+              </p>
+
+              <div className="bg-gray-50 border border-[#E0E0E0] rounded p-3 text-xs text-gray-700 space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-gray-500">{dict.userManagement.table.email}:</span>
+                  <span className="font-mono font-bold text-gray-900">
+                    {userToResetPassword.email}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">{dict.userManagement.table.role}:</span>
+                  <span className="font-semibold text-gray-800">
+                    {userToResetPassword.role === 'Super User'
+                      ? dict.userManagement.roles.superUser
+                      : dict.userManagement.roles.normalUser}
+                  </span>
+                </div>
+              </div>
+
+              <div className="bg-amber-50/70 border border-amber-200/80 rounded p-2.5 text-amber-900 text-[11.5px] flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-[#F8B800] shrink-0 mt-0.5" />
+                <span className="leading-snug">
+                  {dict.userManagement.resetPasswordModal.infoNotice}
+                </span>
+              </div>
+
+              {/* Footer Actions */}
+              <div className="pt-3 border-t border-[#E0E0E0] flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setUserToResetPassword(null)}
+                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded cursor-pointer text-xs"
+                >
+                  {dict.userManagement.resetPasswordModal.cancelBtn}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmResetPassword}
+                  className="px-5 py-2 bg-[#f7b611] hover:bg-[#e2a508] text-white font-semibold rounded flex items-center gap-1.5 cursor-pointer shadow-xs text-xs"
+                >
+                  <KeyRound className="w-3.5 h-3.5 text-white" />
+                  <span className="text-white font-semibold">
+                    {dict.userManagement.resetPasswordModal.confirmBtn}
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🔹 6c. TEMPORARY PASSWORD GENERATED MODAL */}
+      {tempPasswordGenerated && (
+        <div
+          className={`fixed inset-0 z-50 ${
+            isThemeB ? 'bg-black/60 backdrop-blur-xs' : 'bg-black/25 backdrop-blur-[2px]'
+          } flex items-center justify-center p-4 font-sans`}
+        >
+          <div className="bg-white rounded-lg border border-[#E0E0E0] shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div
+              className={`p-4 flex items-center justify-between border-b ${
+                isThemeB
+                  ? 'bg-[#1A1A1A] text-white border-amber-400'
+                  : 'bg-gray-50 text-gray-900 border-gray-200'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <KeyRound className="w-4 h-4 text-[#F8B800]" />
+                <h3 className="font-bold text-[15px] tracking-tight">
+                  {dict.userManagement.tempPasswordModal.title}
+                </h3>
+              </div>
+              <button
+                onClick={() => {
+                  setTempPasswordGenerated(null);
+                  setIsCopied(false);
+                }}
+                className="cursor-pointer p-1 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-200 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-5 space-y-4 text-xs">
+              <div className="bg-gray-50 border border-[#E0E0E0] rounded p-3 text-xs text-gray-700 space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-gray-500">{dict.userManagement.table.email}:</span>
+                  <span className="font-mono font-bold text-gray-900">
+                    {tempPasswordGenerated.email}
+                  </span>
+                </div>
+              </div>
+
+              {/* Temporary Password Box */}
+              <div className="bg-amber-50/70 border border-amber-200/80 rounded-lg p-4 text-center space-y-2.5">
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-gray-600">
+                  {dict.userManagement.tempPasswordModal.tempPasswordLabel}
+                </div>
+                <div className="flex items-center justify-center gap-2.5">
+                  <span className="font-mono text-xl font-bold tracking-widest text-[#1A1A1A] select-all bg-white px-4 py-1.5 rounded border border-gray-300 shadow-2xs">
+                    {tempPasswordGenerated.tempPass}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleCopyTempPassword}
+                    title={dict.userManagement.tempPasswordModal.copyBtn}
+                    className="px-3 py-2 bg-white hover:bg-gray-100 text-gray-700 border border-gray-300 rounded font-semibold text-xs flex items-center gap-1.5 cursor-pointer shadow-2xs transition-all active:scale-95"
+                  >
+                    {isCopied ? (
+                      <>
+                        <Check className="w-4 h-4 text-emerald-600" />
+                        <span className="text-emerald-700 font-bold">
+                          {isDe ? 'Kopiert!' : 'Copied!'}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-4 h-4 text-gray-600" />
+                        <span>{dict.userManagement.tempPasswordModal.copyBtn}</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Instructions Text */}
+              <div className="text-xs text-gray-700 space-y-1.5 font-normal leading-relaxed">
+                <p>
+                  {dict.userManagement.tempPasswordModal.shareNotice}
+                </p>
+                <p>
+                  {dict.userManagement.tempPasswordModal.forceChangeNotice}
+                </p>
+              </div>
+
+              {/* Footer Actions */}
+              <div className="pt-3 border-t border-[#E0E0E0] flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTempPasswordGenerated(null);
+                    setIsCopied(false);
+                  }}
+                  className="px-5 py-2 bg-[#f7b611] hover:bg-[#e2a508] text-white font-semibold rounded cursor-pointer shadow-xs text-xs flex items-center gap-1.5"
+                >
+                  <Check className="w-3.5 h-3.5 text-white" />
+                  <span className="text-white font-semibold">
+                    {dict.userManagement.tempPasswordModal.closeBtn}
+                  </span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
