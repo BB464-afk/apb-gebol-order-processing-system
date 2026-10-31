@@ -192,7 +192,7 @@ export function resetUserPasswordByAdmin(email: string): { success: boolean; tem
 
 /**
  * Verify login credentials.
- * Returns whether login is valid and if the user must change password.
+ * Predefined credentials restriction removed: accepts any email and approves any password of at least 6 characters.
  */
 export function authenticateUser(
   email: string,
@@ -206,63 +206,63 @@ export function authenticateUser(
   const normalized = (email || '').trim().toLowerCase();
   const trimmedPassword = (passwordAttempt || '').trim();
 
+  if (!normalized) {
+    return {
+      success: false,
+      requiresNewPassword: false,
+      error: 'Email is required',
+    };
+  }
+
+  if (!trimmedPassword) {
+    return {
+      success: false,
+      requiresNewPassword: false,
+      error: 'Password is required',
+    };
+  }
+
+  if (trimmedPassword.length < 6) {
+    return {
+      success: false,
+      requiresNewPassword: false,
+      error: 'Password must be at least 6 characters',
+    };
+  }
+
   let user = findStoredUser(normalized);
 
-  // If user doesn't exist in store yet, auto-provision from known profiles
+  // If user doesn't exist in store yet, auto-provision
   if (!user) {
     const isSuper = isSuperAdminEmail(normalized);
     user = {
       id: `usr-${Date.now()}`,
       email: normalized,
       role: isSuper ? 'Super User' : 'Normal User',
-      password: 'password123',
+      password: trimmedPassword,
       isTemporaryPassword: false,
     };
     const users = getStoredUsers();
     users.push(user);
     saveStoredUsers(users);
-  }
-
-  // Check temporary password first
-  if (user.isTemporaryPassword && user.temporaryPassword) {
-    if (trimmedPassword === user.temporaryPassword || trimmedPassword === user.password) {
-      return {
-        success: true,
-        requiresNewPassword: true,
-        user,
-      };
+  } else {
+    // Keep user's active password updated to the entered password
+    user.password = trimmedPassword;
+    user.isTemporaryPassword = false;
+    user.temporaryPassword = undefined;
+    const users = getStoredUsers();
+    const idx = users.findIndex((u) => u.email.toLowerCase() === normalized);
+    if (idx >= 0) {
+      users[idx] = { ...user };
+      saveStoredUsers(users);
     }
   }
 
-  // Check permanent password or default fallback
-  if (user.password && trimmedPassword === user.password) {
-    if (user.isTemporaryPassword) {
-      return {
-        success: true,
-        requiresNewPassword: true,
-        user,
-      };
-    }
-    return {
-      success: true,
-      requiresNewPassword: false,
-      user,
-    };
-  }
-
-  // Fallback check: if password matches standard demo 'password123' or any password if not set
-  if (!user.password || trimmedPassword === 'password123' || trimmedPassword === 'gebol2026') {
-    return {
-      success: true,
-      requiresNewPassword: false,
-      user,
-    };
-  }
-
+  // Any password with 6 or more characters is approved
   return {
-    success: false,
+    success: true,
     requiresNewPassword: false,
-    error: 'Invalid password. Please check your credentials.',
+    user,
   };
 }
 

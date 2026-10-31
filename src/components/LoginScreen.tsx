@@ -91,6 +91,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
     if (!password) {
       newErrors.password = 'Password is required';
+    } else if (password.length < 6) {
+      newErrors.password = 'Password must be at least 6 characters';
     }
 
     if (Object.keys(newErrors).length > 0) {
@@ -107,7 +109,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
       if (!authResult.success) {
         setErrors({
-          password: authResult.error || 'Invalid email or password. Please check your credentials.',
+          password: authResult.error || 'Password must be at least 6 characters',
         });
         return;
       }
