@@ -192,7 +192,9 @@ export function resetUserPasswordByAdmin(email: string): { success: boolean; tem
 
 /**
  * Verify login credentials.
- * Predefined credentials restriction removed: accepts any email and approves any password of at least 6 characters.
+ * PROTOTYPE MODE: Any email and any password (even empty) is accepted.
+ * All users are auto-provisioned as Super User for prototype access.
+ * Reset password flow remains intact.
  */
 export function authenticateUser(
   email: string,
@@ -214,40 +216,33 @@ export function authenticateUser(
     };
   }
 
-  if (!trimmedPassword) {
-    return {
-      success: false,
-      requiresNewPassword: false,
-      error: 'Password is required',
-    };
-  }
-
-  if (trimmedPassword.length < 6) {
-    return {
-      success: false,
-      requiresNewPassword: false,
-      error: 'Password must be at least 6 characters',
-    };
-  }
-
   let user = findStoredUser(normalized);
 
-  // If user doesn't exist in store yet, auto-provision
+  // Check if this user has a temporary password set (reset flow) — honour it
+  if (user && user.isTemporaryPassword) {
+    return {
+      success: true,
+      requiresNewPassword: true,
+      user,
+    };
+  }
+
+  // Auto-provision any user as Super User if not already in store
   if (!user) {
-    const isSuper = isSuperAdminEmail(normalized);
     user = {
       id: `usr-${Date.now()}`,
       email: normalized,
-      role: isSuper ? 'Super User' : 'Normal User',
-      password: trimmedPassword,
+      role: 'Super User',
+      password: trimmedPassword || 'prototype',
       isTemporaryPassword: false,
     };
     const users = getStoredUsers();
     users.push(user);
     saveStoredUsers(users);
   } else {
-    // Keep user's active password updated to the entered password
-    user.password = trimmedPassword;
+    // Upgrade existing user to Super User and update password
+    user.role = 'Super User';
+    user.password = trimmedPassword || 'prototype';
     user.isTemporaryPassword = false;
     user.temporaryPassword = undefined;
     const users = getStoredUsers();
@@ -258,7 +253,7 @@ export function authenticateUser(
     }
   }
 
-  // Any password with 6 or more characters is approved
+  // PROTOTYPE: always succeed
   return {
     success: true,
     requiresNewPassword: false,
